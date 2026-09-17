@@ -1,0 +1,13 @@
+[package]
+name = "koharu-diffusion"
+version = "0.62.0-alpha.1"
+edition = "2024"
+description = "Safe Rust bindings for stable-diffusion.cpp with runtime dynamic loading."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+image = "0.25"
+koharu-diffusion-sys = { git = "https://github.com/mayocream/koharu.git", branch = "refactor/0705" }
+thiserror = "2.0"
+tracing = "0.1"
