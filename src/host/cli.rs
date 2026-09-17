@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use pd_host_function::pd_host_function;
 
-use crate::{CallOutcome, Value, VmResult};
+use crate::{Value, VmResult};
 
-use super::{host_error, return_int, return_value, with_context};
+use super::{host_error, with_context};
 
 type VmArrayRef<'a> = &'a [Value];
 
@@ -88,7 +88,7 @@ fn value_kind(value: &Value) -> VmResult<ValueKind> {
     }
 }
 
-fn insert_reference(parser: i64, value: Value) -> VmResult<CallOutcome> {
+fn insert_reference(parser: i64, value: Value) -> VmResult<i64> {
     with_context(|context| {
         if !context.cli_parsers.contains_key(&parser) {
             return Err(host_error(format!("unknown CLI parser handle {parser}")));
@@ -117,7 +117,7 @@ fn insert_reference(parser: i64, value: Value) -> VmResult<CallOutcome> {
             .expect("parser was checked above")
             .references
             .push(handle);
-        return_int(handle)
+        Ok(handle)
     })
 }
 
@@ -171,31 +171,31 @@ fn format_help(parser: &CliParser, references: &HashMap<i64, CliReference>) -> S
 
 /// Creates an argument parser, matching argparse::ArgumentParser::new.
 #[pd_host_function(name = "flint::cli::argument_parser")]
-pub(super) fn cli_argument_parser_impl() -> VmResult<CallOutcome> {
+pub(super) fn cli_argument_parser_impl() -> VmResult<i64> {
     with_context(|context| {
         let handle = context.next_cli_handle;
         context.next_cli_handle += 1;
         context.cli_parsers.insert(handle, CliParser::default());
-        return_int(handle)
+        Ok(handle)
     })
 }
 
 /// Sets the parser description.
 #[pd_host_function(name = "flint::cli::set_description")]
-pub(super) fn cli_set_description_impl(parser: i64, description: &str) -> VmResult<CallOutcome> {
+pub(super) fn cli_set_description_impl(parser: i64, description: &str) -> VmResult<bool> {
     with_context(|context| {
         let parser = context
             .cli_parsers
             .get_mut(&parser)
             .ok_or_else(|| host_error(format!("unknown CLI parser handle {parser}")))?;
         parser.description = description.to_owned();
-        return_value(Value::Bool(true))
+        Ok(true)
     })
 }
 
 /// Creates a typed value reference attached to a parser.
 #[pd_host_function(name = "flint::cli::refer")]
-pub(super) fn cli_refer_impl(parser: i64, initial: Value) -> VmResult<CallOutcome> {
+pub(super) fn cli_refer_impl(parser: i64, initial: Value) -> VmResult<i64> {
     insert_reference(parser, initial)
 }
 
@@ -206,7 +206,7 @@ pub(super) fn cli_add_option_impl(
     names: VmArrayRef<'_>,
     action: &str,
     help: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let names = names_from_values(names)?;
     if names
         .iter()
@@ -229,7 +229,7 @@ pub(super) fn cli_add_option_impl(
         entry.names = names;
         entry.action = Some(action);
         entry.help = help.to_owned();
-        return_int(reference)
+        Ok(reference)
     })
 }
 
@@ -240,7 +240,7 @@ pub(super) fn cli_add_argument_impl(
     name: &str,
     action: &str,
     help: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let action = Action::parse(action)?;
     if !action.takes_value() {
         return Err(host_error(
@@ -256,39 +256,39 @@ pub(super) fn cli_add_argument_impl(
         entry.action = Some(action);
         entry.help = help.to_owned();
         entry.positional = true;
-        return_int(reference)
+        Ok(reference)
     })
 }
 
 /// Marks a reference as required.
 #[pd_host_function(name = "flint::cli::required")]
-pub(super) fn cli_required_impl(reference: i64) -> VmResult<CallOutcome> {
+pub(super) fn cli_required_impl(reference: i64) -> VmResult<i64> {
     with_context(|context| {
         let entry = context
             .cli_references
             .get_mut(&reference)
             .ok_or_else(|| host_error(format!("unknown CLI reference handle {reference}")))?;
         entry.required = true;
-        return_int(reference)
+        Ok(reference)
     })
 }
 
 /// Sets the value placeholder displayed in usage text.
 #[pd_host_function(name = "flint::cli::metavar")]
-pub(super) fn cli_metavar_impl(reference: i64, metavar: &str) -> VmResult<CallOutcome> {
+pub(super) fn cli_metavar_impl(reference: i64, metavar: &str) -> VmResult<i64> {
     with_context(|context| {
         let entry = context
             .cli_references
             .get_mut(&reference)
             .ok_or_else(|| host_error(format!("unknown CLI reference handle {reference}")))?;
         entry.metavar = Some(metavar.to_owned());
-        return_int(reference)
+        Ok(reference)
     })
 }
 
 /// Parses the current script arguments into all references attached to a parser.
 #[pd_host_function(name = "flint::cli::parse_args")]
-pub(super) fn cli_parse_args_impl(parser_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn cli_parse_args_impl(parser_handle: i64) -> VmResult<bool> {
     with_context(|context| {
         let parser = context
             .cli_parsers
@@ -421,7 +421,7 @@ pub(super) fn cli_parse_args_impl(parser_handle: i64) -> VmResult<CallOutcome> {
             .get_mut(&parser_handle)
             .expect("parser was checked above")
             .parsed = true;
-        return_value(Value::Bool(true))
+        Ok(true)
     })
 }
 
@@ -446,6 +446,6 @@ fn reference_value(reference: i64) -> VmResult<Value> {
 
 /// Reads a parsed typed reference.
 #[pd_host_function(name = "flint::cli::get")]
-pub(super) fn cli_get_impl(reference: i64) -> VmResult<CallOutcome> {
-    return_value(reference_value(reference)?)
+pub(super) fn cli_get_impl(reference: i64) -> VmResult<Value> {
+    reference_value(reference)
 }

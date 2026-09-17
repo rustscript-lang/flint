@@ -10,9 +10,9 @@ use koharu_runtime::package::{
 use libloading::Library;
 use pd_host_function::pd_host_function;
 
-use crate::{CallOutcome, Value, VmResult};
+use crate::VmResult;
 
-use super::{host_error, native, return_value};
+use super::{host_error, native};
 
 const SD_CPP_TAG: &str = "master-769-cc73429";
 
@@ -27,52 +27,50 @@ pub(super) struct GgmlApi {
 
 /// Loads ggml backend plugins from a directory containing ggml.dll/libggml.so.
 #[pd_host_function(name = "flint::ggml::load_backends")]
-pub(super) fn ggml_load_backends_impl(path: &str) -> VmResult<CallOutcome> {
+pub(super) fn ggml_load_backends_impl(path: &str) -> VmResult<bool> {
     load_backends_from_path(Path::new(path))
         .map_err(|err| host_error(format!("failed to load ggml backends: {err:#}")))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Lists ggml backend devices after loading plugins from a directory.
 #[pd_host_function(name = "flint::ggml::list_devices")]
-pub(super) fn ggml_list_devices_impl(path: &str) -> VmResult<CallOutcome> {
+pub(super) fn ggml_list_devices_impl(path: &str) -> VmResult<String> {
     let api = load_backends_from_path(Path::new(path))
         .map_err(|err| host_error(format!("failed to list ggml devices: {err:#}")))?;
     let devices = api
         .list_devices()
         .map_err(|err| host_error(format!("failed to list ggml devices: {err:#}")))?;
-    return_value(Value::String(devices.into()))
+    Ok(devices)
 }
 
 /// Returns the packaged stable-diffusion.cpp runtime directory for a backend.
 #[pd_host_function(name = "flint::ggml::stable_diffusion_package_dir")]
-pub(super) fn ggml_stable_diffusion_package_dir_impl(backend: &str) -> VmResult<CallOutcome> {
+pub(super) fn ggml_stable_diffusion_package_dir_impl(backend: &str) -> VmResult<String> {
     let package = select_stable_diffusion_package(Some(backend))
         .map_err(|err| host_error(format!("failed to select ggml package: {err:#}")))?;
     let directory = stable_diffusion_package_dir(package);
-    return_value(Value::String(
-        directory.to_string_lossy().into_owned().into(),
-    ))
+    Ok(directory.to_string_lossy().into_owned())
 }
 
 /// Loads ggml backend plugins from a packaged stable-diffusion.cpp runtime.
 #[pd_host_function(name = "flint::ggml::load_stable_diffusion_backends")]
-pub(super) fn ggml_load_stable_diffusion_backends_impl(backend: &str) -> VmResult<CallOutcome> {
+pub(super) fn ggml_load_stable_diffusion_backends_impl(backend: &str) -> VmResult<bool> {
     let package = select_stable_diffusion_package(Some(backend))
         .map_err(|err| host_error(format!("failed to select ggml package: {err:#}")))?;
     ensure_stable_diffusion_backends(package)
         .map_err(|err| host_error(format!("failed to load ggml backends: {err:#}")))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Lists ggml devices for a packaged stable-diffusion.cpp runtime.
 #[pd_host_function(name = "flint::ggml::list_stable_diffusion_devices")]
-pub(super) fn ggml_list_stable_diffusion_devices_impl(backend: &str) -> VmResult<CallOutcome> {
+pub(super) fn ggml_list_stable_diffusion_devices_impl(backend: &str) -> VmResult<String> {
     let package = select_stable_diffusion_package(Some(backend))
         .map_err(|err| host_error(format!("failed to select ggml package: {err:#}")))?;
     let devices = list_stable_diffusion_devices(package)
         .map_err(|err| host_error(format!("failed to list ggml devices: {err:#}")))?;
-    return_value(Value::String(devices.into()))
+    Ok(devices)
 }
 
 pub(super) fn ensure_stable_diffusion_backends(

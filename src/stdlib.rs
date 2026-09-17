@@ -1,5 +1,7 @@
 use vm::CompileSourceFileOptions;
 
+use crate::host::flint_host_catalog;
+
 const RSS_MODULES: &[(&str, &str)] = &[
     (
         "stdlib/rss/bytes.rss",
@@ -42,5 +44,5 @@ pub(crate) fn compile_options() -> CompileSourceFileOptions {
     for (spec, source) in RSS_MODULES {
         options.set_module_override_source(*spec, *source);
     }
-    options
+    options.with_host_api_catalog(flint_host_catalog())
 }
