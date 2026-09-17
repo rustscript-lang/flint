@@ -1,13 +1,15 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use flint_ai::{
     FROZEN_RUSTSCRIPT_REV, flint_host_catalog, flint_host_modules, install_flint_host_modules,
 };
 use vm::{
-    CompileSourceFileOptions, HostApiCatalog, HostFunctionRegistry, HostTypeSchema, SourceFlavor,
-    Vm, compile_source_with_flavor_and_options,
+    CompileSourceFileOptions, HostAdapterDescriptor, HostApiCatalog, HostBindingKind,
+    HostFunctionRegistry, HostFunctionSchema, HostTypeSchema, SourceFlavor, Vm,
+    compile_source_with_flavor_and_options,
 };
 
 fn compose_catalog() -> HostApiCatalog {
@@ -60,53 +62,89 @@ fn compile_rss(path: &Path) {
         .unwrap_or_else(|err| panic!("{} failed to compile: {err}", path.display()));
 }
 
-#[test]
-fn composition_owns_every_migrated_host_in_declaration_order() {
-    let modules = flint_host_modules();
-    assert_eq!(
-        modules.iter().map(|module| module.name).collect::<Vec<_>>(),
-        [
-            "flint.cli",
-            "flint.runtime",
-            "flint.cache",
-            "flint.pair",
-            "flint.ggml",
-            "flint.llama",
-            "flint.diffusion",
-        ]
-    );
+fn is_residual_name(name: &str) -> bool {
+    name.starts_with("flint::tokenizer::")
+        || name.starts_with("flint::weights::")
+        || name.starts_with("flint::tensor::")
+        || name.starts_with("flint::nn::")
+        || name.starts_with("flint::image::")
+        || name.starts_with("flint::vl::")
+}
 
-    let names: Vec<String> = modules
+fn compile_against(catalog: Arc<HostApiCatalog>, source: &str) -> vm::CompiledProgram {
+    compile_source_with_flavor_and_options(
+        source,
+        SourceFlavor::RustScript,
+        CompileSourceFileOptions::default().with_host_api_catalog(catalog),
+    )
+    .expect("script compiles")
+}
+
+#[test]
+fn composition_catalog_and_adapter_names_are_the_same_surface() {
+    let modules = flint_host_modules();
+    let composition_names: Vec<String> = modules
         .iter()
         .flat_map(|module| module.descriptors())
         .map(|descriptor| descriptor.schema.name.clone())
         .collect();
-    assert_eq!(names.len(), 105);
-
-    let unique: BTreeSet<_> = names.iter().cloned().collect();
-    assert_eq!(
-        unique.len(),
-        names.len(),
-        "host function names must be unique"
-    );
-
+    let adapter_names: Vec<String> = modules
+        .iter()
+        .flat_map(|module| module.descriptors())
+        .map(|descriptor| match descriptor.adapter {
+            HostAdapterDescriptor::StaticArgs(_)
+            | HostAdapterDescriptor::StaticNonYieldingArgs(_)
+            | HostAdapterDescriptor::Static(_)
+            | HostAdapterDescriptor::StaticStack(_)
+            | HostAdapterDescriptor::StaticStackRuntimeOwned(_)
+            | HostAdapterDescriptor::Owned(_) => descriptor.schema.name.clone(),
+        })
+        .collect();
     let catalog_names: Vec<String> = flint_host_catalog()
         .functions()
         .iter()
         .map(|function| function.name.clone())
         .collect();
-    assert_eq!(&catalog_names[..names.len()], names.as_slice());
-    assert!(
-        catalog_names[names.len()..]
-            .iter()
-            .all(|name| name.starts_with("flint::tokenizer::")
-                || name.starts_with("flint::weights::")
-                || name.starts_with("flint::tensor::")
-                || name.starts_with("flint::nn::")
-                || name.starts_with("flint::image::")
-                || name.starts_with("flint::vl::")),
-        "residual catalog names must be the Torch CONTEXT_HOST_OPS families"
+
+    let composition_count = composition_names.len();
+    let adapter_count = adapter_names.len();
+    let catalog_count = catalog_names.len();
+    assert_eq!(composition_count, adapter_count);
+    assert_eq!(adapter_count, catalog_count);
+    assert_eq!(
+        composition_names, catalog_names,
+        "composition order must match catalog order"
     );
+
+    let composition_set: BTreeSet<_> = composition_names.iter().cloned().collect();
+    let adapter_set: BTreeSet<_> = adapter_names.iter().cloned().collect();
+    let catalog_set: BTreeSet<_> = catalog_names.iter().cloned().collect();
+    assert_eq!(composition_set.len(), composition_count);
+    assert_eq!(composition_set, adapter_set);
+    assert_eq!(adapter_set, catalog_set);
+
+    let residual_count = composition_names
+        .iter()
+        .filter(|name| is_residual_name(name))
+        .count();
+    let macro_count = composition_count - residual_count;
+    assert_eq!(macro_count, 105);
+    assert_eq!(residual_count, 102);
+    assert_eq!(composition_count, 207);
+
+    for descriptor in modules.iter().flat_map(|module| module.descriptors()) {
+        if !is_residual_name(&descriptor.schema.name) {
+            continue;
+        }
+        assert_eq!(descriptor.binding.kind, HostBindingKind::StaticArgs);
+        assert!(
+            matches!(descriptor.adapter, HostAdapterDescriptor::StaticArgs(_)),
+            "{} must bind a static args-slice adapter",
+            descriptor.schema.name
+        );
+        assert!(descriptor.effects.is_empty());
+        assert!(descriptor.resource_types.is_empty());
+    }
 }
 
 #[test]
@@ -126,24 +164,17 @@ fn dynamic_map_any_unknown_slots_match_allowlist() {
     let catalog = flint_host_catalog();
     assert_eq!(
         dynamic_slots(catalog.as_ref()),
-        [
-            "flint::cli::add_option param names",
-            "flint::cli::get return",
-            "flint::cli::refer param initial",
-            "flint::runtime::args return",
-        ]
+        ["flint::cli::get return", "flint::cli::refer param initial",]
     );
 }
 
 #[test]
 fn deny_before_install_then_allow_after() {
     let catalog = flint_host_catalog();
-    let compiled = compile_source_with_flavor_and_options(
+    let compiled = compile_against(
+        catalog.clone(),
         "use flint;\nlet _parser = flint::cli::argument_parser();\n",
-        SourceFlavor::RustScript,
-        CompileSourceFileOptions::default().with_host_api_catalog(catalog.clone()),
-    )
-    .expect("script compiles against production catalog");
+    );
 
     let mut denied = Vm::new(compiled.program.clone());
     let empty = HostFunctionRegistry::restricted();
@@ -162,34 +193,65 @@ fn deny_before_install_then_allow_after() {
     registry
         .bind_vm_cached(&mut allowed)
         .expect("allow after exact install");
-    assert!(registry.contains_name("flint::cli::argument_parser"));
 }
 
 #[test]
-fn unlisted_host_is_denied() {
+fn public_install_binds_the_complete_catalog_surface() {
     let catalog = flint_host_catalog();
     let mut registry = HostFunctionRegistry::restricted();
     install_flint_host_modules(&mut registry, catalog.as_ref()).expect("install composition");
-    assert!(!registry.contains_name("flint::not_exported"));
+    for function in catalog.functions() {
+        assert!(
+            registry.contains_name(&function.name),
+            "install must register {}",
+            function.name
+        );
+    }
+
+    let compiled = compile_against(
+        catalog.clone(),
+        "use flint;\nlet _cleared = flint::tokenizer::clear_generated_tokens();\n",
+    );
+    let mut vm = Vm::new(compiled.program);
+    registry
+        .bind_vm_cached(&mut vm)
+        .expect("public install helper must bind residual hosts");
 }
 
 #[test]
-fn schema_mismatch_and_empty_catalog_do_not_partially_mutate() {
-    let mut registry = HostFunctionRegistry::restricted();
-    let empty = HostApiCatalog::builder()
-        .build()
-        .expect("empty catalog builds");
-    install_flint_host_modules(&mut registry, &empty)
-        .expect_err("install against an empty catalog must fail");
-    assert!(
-        !registry.contains_name("flint::cli::argument_parser"),
-        "failed composition must not leave the first module installed"
-    );
-
+fn unlisted_host_import_is_denied_at_bind() {
     let production = flint_host_catalog();
     let mut builder = HostApiCatalog::builder();
     for function in production.functions() {
-        if function.name == "flint::cli::argument_parser" {
+        builder.function(function.clone());
+    }
+    builder.function(HostFunctionSchema::with_return(
+        "flint::not_exported",
+        vec![],
+        HostTypeSchema::Bool,
+    ));
+    let expanded = Arc::new(builder.build().expect("expanded catalog builds"));
+    let compiled = compile_against(expanded, "use flint;\nlet _ok = flint::not_exported();\n");
+
+    let mut registry = HostFunctionRegistry::restricted();
+    install_flint_host_modules(&mut registry, production.as_ref()).expect("install composition");
+    let mut vm = Vm::new(compiled.program);
+    let error = registry
+        .bind_vm_cached(&mut vm)
+        .expect_err("unlisted import must be denied at bind");
+    let message = error.to_string();
+    assert!(
+        message.contains("flint::not_exported"),
+        "bind denial must name the unlisted import: {message}"
+    );
+}
+
+#[test]
+fn residual_schema_mismatch_rolls_back_after_earlier_modules() {
+    let production = flint_host_catalog();
+    let mut builder = HostApiCatalog::builder();
+    for function in production.functions() {
+        if function.name == "flint::vl::scatter_image_embeddings" {
             let mut mismatched = function.clone();
             mismatched.return_type = HostTypeSchema::String;
             builder.function(mismatched);
@@ -198,11 +260,53 @@ fn schema_mismatch_and_empty_catalog_do_not_partially_mutate() {
         }
     }
     let mismatched = builder.build().expect("mismatched catalog builds");
+
+    let mut registry = HostFunctionRegistry::restricted();
+    let named_before = registry.named_struct_schemas().clone();
     install_flint_host_modules(&mut registry, &mismatched)
-        .expect_err("schema/adapter mismatch must fail");
+        .expect_err("residual adapter/schema mismatch must fail");
+    assert_eq!(registry.named_struct_schemas(), &named_before);
+    assert!(!registry.contains_name("flint::cli::argument_parser"));
+    assert!(!registry.contains_name("flint::tokenizer::load"));
+    assert!(!registry.contains_name("flint::vl::scatter_image_embeddings"));
+
+    let compiled = compile_against(
+        production.clone(),
+        "use flint;\nlet _parser = flint::cli::argument_parser();\n",
+    );
+    let mut vm = Vm::new(compiled.program);
+    registry
+        .bind_vm_cached(&mut vm)
+        .expect_err("failed residual install must leave capabilities unchanged");
+}
+
+#[test]
+fn production_bind_path_has_no_parallel_registry_writer() {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let host = fs::read_to_string(manifest.join("src/host.rs")).expect("host.rs");
     assert!(
-        !registry.contains_name("flint::cli::argument_parser"),
-        "schema mismatch must not partially mutate the registry"
+        !host.contains("CONTEXT_HOST_OPS"),
+        "TorchHostRuntime must not keep a parallel CONTEXT_HOST_OPS table"
+    );
+    assert!(
+        !host.contains("register_catalog_args"),
+        "production bind must not write the registry besides install_flint_host_modules"
+    );
+    assert!(
+        !host.contains("bind_args_function"),
+        "production bind must not post-bind args-slice adapters"
+    );
+    assert!(
+        !manifest.join("src/host/context_schemas.rs").exists(),
+        "parallel context_schemas.rs table must be deleted"
+    );
+    assert!(
+        !host.contains("mod context_schemas"),
+        "host.rs must not keep the parallel schema module"
+    );
+    assert!(
+        host.contains("install_flint_host_modules"),
+        "TorchHostRuntime must install through the public helper"
     );
 }
 

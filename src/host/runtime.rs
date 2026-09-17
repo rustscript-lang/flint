@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::time::Instant;
 
 use pd_host_function::pd_host_function;
+use vm::{HostFunctionSchema, HostTypeSchema};
 
 use crate::{Value, VmResult};
 
@@ -11,8 +12,16 @@ fn non_negative_index(value: i64, label: &str) -> VmResult<usize> {
     usize::try_from(value).map_err(|_| host_error(format!("{label} must be non-negative")))
 }
 
+fn runtime_args_contract() -> HostFunctionSchema {
+    HostFunctionSchema::with_return(
+        "flint::runtime::args",
+        vec![],
+        HostTypeSchema::Array(Box::new(HostTypeSchema::String)),
+    )
+}
+
 /// Returns all string arguments passed to the script runner.
-#[pd_host_function(name = "flint::runtime::args")]
+#[pd_host_function(name = "flint::runtime::args", contract = runtime_args_contract)]
 pub(super) fn runtime_args_impl() -> VmResult<Vec<Value>> {
     with_context(|context| {
         let values = context.args.iter().cloned().map(Value::string).collect();

@@ -5,25 +5,23 @@ use vm::{
     VmResult,
 };
 
-use super::{cache, cli, diffusion, ggml, llama, pair, runtime};
+use super::{cache, cli, context, diffusion, ggml, llama, pair, runtime};
 
 pub const FROZEN_RUSTSCRIPT_REV: &str = "b1d6cffede77f49410bf63525f30b9a46b02dc01";
 
-/// Single ordered composition for Flint's migrated `#[pd_host_function]` hosts.
+/// Single ordered composition for every production Flint host.
 ///
-/// This list is the only compile-catalog and restricted-runtime authority for those
-/// functions. Residual `CONTEXT_HOST_OPS` tensor/tokenizer/weights/nn/image/vl
-/// adapters stay args-slice until they gain descriptors.
+/// Macro-generated descriptors and residual args-slice Torch adapters share this
+/// list as the only compile-catalog and restricted-runtime authority.
 ///
-/// Slot allowlist for remaining Any/Int guest values:
+/// Slot allowlist for remaining Any guest values:
 /// - `flint::cli::get` / `flint::cli::refer` `Value` slots: argparse values are
 ///   string|int|float|bool chosen at refer time.
-/// - `flint::runtime::args` `Vec<Value>`: argv is a string array.
 /// - llama/diffusion/cli/cache/pair/runtime `i64` handles: opaque tokens into
 ///   host-owned tables with explicit free; VM `HostResource` auto-close would
 ///   change llama.cpp/sd.cpp lifetime.
 /// - ggml/llama device listings: formatted text reports consumed as `string`.
-pub fn flint_host_modules() -> [HostModuleDescriptor; 7] {
+pub fn flint_host_modules() -> [HostModuleDescriptor; 13] {
     [
         cli_host_module(),
         runtime_host_module(),
@@ -32,6 +30,12 @@ pub fn flint_host_modules() -> [HostModuleDescriptor; 7] {
         ggml_host_module(),
         llama_host_module(),
         diffusion_host_module(),
+        context::tokenizer_host_module(),
+        context::weights_host_module(),
+        context::tensor_host_module(),
+        context::nn_host_module(),
+        context::image_host_module(),
+        context::vl_host_module(),
     ]
 }
 
@@ -208,15 +212,7 @@ fn compose_flint_host_catalog() -> Result<HostApiCatalog, vm::HostApiCatalogErro
         .iter()
         .flat_map(|module| module.descriptors())
         .collect();
-    let migrated = HostFunctionDescriptor::collect_catalog(&descriptors)?;
-    let mut builder = HostApiCatalog::builder();
-    for function in migrated.functions() {
-        builder.function(function.clone());
-    }
-    for schema in super::context_schemas::context_host_op_schemas() {
-        builder.function(schema);
-    }
-    builder.build()
+    HostFunctionDescriptor::collect_catalog(&descriptors)
 }
 
 /// Guest catalog derived from [`flint_host_modules`] in declaration order.

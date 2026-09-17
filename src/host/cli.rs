@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use pd_host_function::pd_host_function;
+use vm::{HostFunctionSchema, HostParamSchema, HostTypeSchema};
 
 use crate::{Value, VmResult};
 
@@ -199,8 +200,24 @@ pub(super) fn cli_refer_impl(parser: i64, initial: Value) -> VmResult<i64> {
     insert_reference(parser, initial)
 }
 
+fn cli_add_option_contract() -> HostFunctionSchema {
+    HostFunctionSchema::with_return(
+        "flint::cli::add_option",
+        vec![
+            HostParamSchema::value("reference", HostTypeSchema::Int),
+            HostParamSchema::value(
+                "names",
+                HostTypeSchema::Array(Box::new(HostTypeSchema::String)),
+            ),
+            HostParamSchema::value("action", HostTypeSchema::String),
+            HostParamSchema::value("help", HostTypeSchema::String),
+        ],
+        HostTypeSchema::Int,
+    )
+}
+
 /// Adds named options and an argparse action to a reference.
-#[pd_host_function(name = "flint::cli::add_option")]
+#[pd_host_function(name = "flint::cli::add_option", contract = cli_add_option_contract)]
 pub(super) fn cli_add_option_impl(
     reference: i64,
     names: VmArrayRef<'_>,
