@@ -24,10 +24,15 @@ koharu-diffusion = { git = "https://github.com/mayocream/koharu.git", branch = "
 koharu-llama = { git = "https://github.com/mayocream/koharu.git", branch = "refactor/0705", package = "koharu-llama" }
 koharu-torch = { git = "https://github.com/mayocream/koharu.git", branch = "refactor/0705", package = "koharu-torch" }
 libloading = "0.8"
-pd-host-function = { path = "../rustscript/pd-host-function" }
+pd-host-function = { git = "https://github.com/rustscript-lang/rustscript", rev = "b1d6cffede77f49410bf63525f30b9a46b02dc01" }
 tokenizers = "0.22"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-vm = { package = "pd-vm", path = "../rustscript", default-features = false, features = ["runtime", "cranelift-jit"] }
+vm = { package = "pd-vm", git = "https://github.com/rustscript-lang/rustscript", rev = "b1d6cffede77f49410bf63525f30b9a46b02dc01", default-features = false, features = ["runtime", "cranelift-jit"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+# Locked koharu-diffusion 3a832b5 wrappers use i32 FFI discriminants; bindgen on
+# this toolchain emits c_uint. Path patch keeps koharu-diffusion-sys on the lock.
+[patch."https://github.com/mayocream/koharu.git"]
+koharu-diffusion = { path = "third_party/koharu-diffusion" }

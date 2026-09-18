@@ -1,6 +1,7 @@
 mod host;
 mod stdlib;
 
+#[cfg(windows)]
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
@@ -10,13 +11,17 @@ use image::{DynamicImage, GrayImage, RgbImage};
 use imageproc::contours::{BorderType, find_contours_with_threshold};
 use koharu_runtime::package::{Package, libtorch::Libtorch, loading::preload};
 use koharu_torch::{Cuda, Device, Kind, Tensor};
-pub(crate) use vm::{CallOutcome, Value, VmResult};
 use vm::{
-    CompiledProgram, Program, SourcePathError, compile_source, compile_source_file_with_options,
+    CompiledProgram, Program, SourceFlavor, SourcePathError, compile_source_file_with_options,
+    compile_source_with_flavor_and_options,
 };
+pub(crate) use vm::{Value, VmResult};
 
 use crate::host::TorchHostRuntime;
-pub use crate::host::{ScriptRunner, ScriptTextOutput};
+pub use crate::host::{
+    FROZEN_RUSTSCRIPT_REV, ScriptRunner, ScriptTextOutput, flint_host_catalog, flint_host_modules,
+    install_flint_host_modules,
+};
 
 pub fn compile_script_file(path: impl AsRef<Path>) -> Result<CompiledProgram, SourcePathError> {
     compile_source_file_with_options(path, stdlib::compile_options())
@@ -33,8 +38,12 @@ impl LamaRustScript {
         preload_libtorch()
             .await
             .context("failed to initialize LibTorch runtime")?;
-        let compiled = compile_source(include_str!("../scripts/lama.rss"))
-            .map_err(|err| anyhow!("failed to compile LaMa RustScript: {err}"))?;
+        let compiled = compile_source_with_flavor_and_options(
+            include_str!("../scripts/lama.rss"),
+            SourceFlavor::RustScript,
+            stdlib::compile_options(),
+        )
+        .map_err(|err| anyhow!("failed to compile LaMa RustScript: {err}"))?;
         Ok(Self {
             device,
             program: Arc::new(compiled.program),

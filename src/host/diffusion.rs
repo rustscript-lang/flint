@@ -13,9 +13,9 @@ use koharu_runtime::package::stable_diffusion_cpp::StableDiffusionCpp;
 use libloading::Library;
 use pd_host_function::pd_host_function;
 
-use crate::{CallOutcome, Value, VmResult};
+use crate::VmResult;
 
-use super::{ggml, host_error, native, return_int, return_value};
+use super::{ggml, host_error, native};
 
 #[cfg(target_env = "msvc")]
 type SamplerEnumRepr = i32;
@@ -62,13 +62,13 @@ fn next_sd_handle() -> i64 {
 
 /// Creates default stable-diffusion.cpp context parameters and returns a handle.
 #[pd_host_function(name = "flint::diffusion::ctx_params_init")]
-pub(super) fn sd_ctx_params_init_impl() -> VmResult<CallOutcome> {
+pub(super) fn sd_ctx_params_init_impl() -> VmResult<i64> {
     let handle = next_sd_handle();
     SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?
         .insert(handle, PendingContextParams::default());
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Sets model-related paths on stable-diffusion.cpp context parameters.
@@ -79,7 +79,7 @@ pub(super) fn sd_ctx_params_set_paths_impl(
     diffusion_model_path: &str,
     vae_path: &str,
     llm_path: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut handles = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?;
@@ -90,7 +90,7 @@ pub(super) fn sd_ctx_params_set_paths_impl(
     params.diffusion_model_path = optional_path(diffusion_model_path);
     params.vae_path = optional_path(vae_path);
     params.llm_path = optional_path(llm_path);
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets backend placement options on stable-diffusion.cpp context parameters.
@@ -100,7 +100,7 @@ pub(super) fn sd_ctx_params_set_backend_impl(
     backend: &str,
     params_backend: &str,
     max_vram: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut handles = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?;
@@ -111,12 +111,12 @@ pub(super) fn sd_ctx_params_set_backend_impl(
     params.backend = native_backend(backend);
     params.params_backend = optional_string(params_backend);
     params.max_vram = max_vram_value(max_vram);
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets the model weight type on stable-diffusion.cpp context parameters.
 #[pd_host_function(name = "flint::diffusion::ctx_params_set_wtype")]
-pub(super) fn sd_ctx_params_set_wtype_impl(handle: i64, wtype: &str) -> VmResult<CallOutcome> {
+pub(super) fn sd_ctx_params_set_wtype_impl(handle: i64, wtype: &str) -> VmResult<bool> {
     let mut handles = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?;
@@ -124,15 +124,12 @@ pub(super) fn sd_ctx_params_set_wtype_impl(handle: i64, wtype: &str) -> VmResult
         .get_mut(&handle)
         .ok_or_else(|| unknown_handle("context parameter", handle))?;
     params.weight_type = parse_weight_type(wtype)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets the VAE tensor naming/layout format.
 #[pd_host_function(name = "flint::diffusion::ctx_params_set_vae_format")]
-pub(super) fn sd_ctx_params_set_vae_format_impl(
-    handle: i64,
-    vae_format: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn sd_ctx_params_set_vae_format_impl(handle: i64, vae_format: i64) -> VmResult<bool> {
     let mut handles = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?;
@@ -141,7 +138,7 @@ pub(super) fn sd_ctx_params_set_vae_format_impl(
         .ok_or_else(|| unknown_handle("context parameter", handle))?;
     params.vae_format =
         VaeFormat::try_from(checked_i32(vae_format, "vae_format")?).map_err(diffusion_error)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets mmap and attention flags on stable-diffusion.cpp context parameters.
@@ -151,7 +148,7 @@ pub(super) fn sd_ctx_params_set_flags_impl(
     enable_mmap: bool,
     flash_attn: bool,
     diffusion_flash_attn: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut handles = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?;
@@ -161,12 +158,12 @@ pub(super) fn sd_ctx_params_set_flags_impl(
     params.enable_mmap = enable_mmap;
     params.flash_attention = flash_attn;
     params.diffusion_flash_attention = diffusion_flash_attn;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Creates a stable-diffusion.cpp context through koharu-diffusion.
 #[pd_host_function(name = "flint::diffusion::new_sd_ctx")]
-pub(super) fn sd_new_sd_ctx_impl(params_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_new_sd_ctx_impl(params_handle: i64) -> VmResult<i64> {
     let pending = SD_CTX_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("context parameter"))?
@@ -214,29 +211,29 @@ pub(super) fn sd_new_sd_ctx_impl(params_handle: i64) -> VmResult<CallOutcome> {
         .lock()
         .map_err(|_| registry_error("context"))?
         .insert(handle, context);
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Drops an owning koharu-diffusion context handle.
 #[pd_host_function(name = "flint::diffusion::free_sd_ctx")]
-pub(super) fn sd_free_sd_ctx_impl(ctx_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_free_sd_ctx_impl(ctx_handle: i64) -> VmResult<bool> {
     SD_CTX_HANDLES
         .lock()
         .map_err(|_| registry_error("context"))?
         .remove(&ctx_handle)
         .ok_or_else(|| unknown_handle("context", ctx_handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Creates default image-generation parameters.
 #[pd_host_function(name = "flint::diffusion::img_gen_params_init")]
-pub(super) fn sd_img_gen_params_init_impl() -> VmResult<CallOutcome> {
+pub(super) fn sd_img_gen_params_init_impl() -> VmResult<i64> {
     let handle = next_sd_handle();
     SD_IMG_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("image parameter"))?
         .insert(handle, ImageGenerationParams::default());
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Sets prompt strings on image-generation parameters.
@@ -245,7 +242,7 @@ pub(super) fn sd_img_gen_params_set_prompt_impl(
     handle: i64,
     prompt: &str,
     negative_prompt: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut handles = SD_IMG_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("image parameter"))?;
@@ -254,7 +251,7 @@ pub(super) fn sd_img_gen_params_set_prompt_impl(
         .ok_or_else(|| unknown_handle("image parameter", handle))?;
     params.prompt = prompt.to_owned();
     params.negative_prompt = negative_prompt.to_owned();
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets output dimensions on image-generation parameters.
@@ -263,7 +260,7 @@ pub(super) fn sd_img_gen_params_set_size_impl(
     handle: i64,
     width: i64,
     height: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     validate_positive(width, "width")?;
     validate_positive(height, "height")?;
     let mut handles = SD_IMG_PARAMS_HANDLES
@@ -274,7 +271,7 @@ pub(super) fn sd_img_gen_params_set_size_impl(
         .ok_or_else(|| unknown_handle("image parameter", handle))?;
     params.width = checked_i32(width, "width")?;
     params.height = checked_i32(height, "height")?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets sampling options on image-generation parameters.
@@ -284,7 +281,7 @@ pub(super) fn sd_img_gen_params_set_sample_impl(
     steps: i64,
     seed: i64,
     cfg_scale: f64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     validate_positive(steps, "steps")?;
     if cfg_scale < 0.0 {
         return Err(host_error("cfg_scale must be non-negative"));
@@ -299,7 +296,7 @@ pub(super) fn sd_img_gen_params_set_sample_impl(
     params.batch_count = 1;
     params.sample.sample_steps = checked_i32(steps, "steps")?;
     params.sample.guidance.text_cfg = cfg_scale as f32;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Sets sample method and scheduler on image-generation parameters.
@@ -308,7 +305,7 @@ pub(super) fn sd_img_gen_params_set_sampler_impl(
     handle: i64,
     sample_method: i64,
     scheduler: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let sample_method =
         SampleMethod::try_from(checked_i32(sample_method, "sample_method")? as SamplerEnumRepr)
             .map_err(diffusion_error)?;
@@ -322,45 +319,45 @@ pub(super) fn sd_img_gen_params_set_sampler_impl(
         .ok_or_else(|| unknown_handle("image parameter", handle))?;
     params.sample.sample_method = sample_method;
     params.sample.scheduler = scheduler;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Converts a sample method name to its enum value.
 #[pd_host_function(name = "flint::diffusion::str_to_sample_method")]
-pub(super) fn sd_str_to_sample_method_impl(name: &str) -> VmResult<CallOutcome> {
+pub(super) fn sd_str_to_sample_method_impl(name: &str) -> VmResult<i64> {
     let name = normalize_auto(name);
     let value = SampleMethod::from_str(name).map_err(diffusion_error)?;
-    return_int(i64::from(value.as_raw()))
+    Ok(i64::from(value.as_raw()))
 }
 
 /// Converts a scheduler name to its enum value.
 #[pd_host_function(name = "flint::diffusion::str_to_scheduler")]
-pub(super) fn sd_str_to_scheduler_impl(name: &str) -> VmResult<CallOutcome> {
+pub(super) fn sd_str_to_scheduler_impl(name: &str) -> VmResult<i64> {
     let name = normalize_auto(name);
     let value = Scheduler::from_str(name).map_err(diffusion_error)?;
-    return_int(i64::from(value.as_raw()))
+    Ok(i64::from(value.as_raw()))
 }
 
 /// Converts a sample method enum value to its name.
 #[pd_host_function(name = "flint::diffusion::sample_method_name")]
-pub(super) fn sd_sample_method_name_impl(sample_method: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_sample_method_name_impl(sample_method: i64) -> VmResult<String> {
     let value =
         SampleMethod::try_from(checked_i32(sample_method, "sample_method")? as SamplerEnumRepr)
             .map_err(diffusion_error)?;
-    return_value(Value::String(value.as_str().to_owned().into()))
+    Ok(value.as_str().to_owned())
 }
 
 /// Converts a scheduler enum value to its name.
 #[pd_host_function(name = "flint::diffusion::scheduler_name")]
-pub(super) fn sd_scheduler_name_impl(scheduler: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_scheduler_name_impl(scheduler: i64) -> VmResult<String> {
     let value = Scheduler::try_from(checked_i32(scheduler, "scheduler")? as SamplerEnumRepr)
         .map_err(diffusion_error)?;
-    return_value(Value::String(value.as_str().to_owned().into()))
+    Ok(value.as_str().to_owned())
 }
 
 /// Gets the model-specific default sample method for a context.
 #[pd_host_function(name = "flint::diffusion::get_default_sample_method")]
-pub(super) fn sd_get_default_sample_method_impl(ctx_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_get_default_sample_method_impl(ctx_handle: i64) -> VmResult<i64> {
     let handles = SD_CTX_HANDLES
         .lock()
         .map_err(|_| registry_error("context"))?;
@@ -368,15 +365,12 @@ pub(super) fn sd_get_default_sample_method_impl(ctx_handle: i64) -> VmResult<Cal
         .get(&ctx_handle)
         .ok_or_else(|| unknown_handle("context", ctx_handle))?;
     let value = context.default_sample_method().map_err(diffusion_error)?;
-    return_int(i64::from(value.as_raw()))
+    Ok(i64::from(value.as_raw()))
 }
 
 /// Gets the model-specific default scheduler for a sampler.
 #[pd_host_function(name = "flint::diffusion::get_default_scheduler")]
-pub(super) fn sd_get_default_scheduler_impl(
-    ctx_handle: i64,
-    sample_method: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn sd_get_default_scheduler_impl(ctx_handle: i64, sample_method: i64) -> VmResult<i64> {
     let sample_method =
         SampleMethod::try_from(checked_i32(sample_method, "sample_method")? as SamplerEnumRepr)
             .map_err(diffusion_error)?;
@@ -389,12 +383,12 @@ pub(super) fn sd_get_default_scheduler_impl(
     let value = context
         .default_scheduler(sample_method)
         .map_err(diffusion_error)?;
-    return_int(i64::from(value.as_raw()))
+    Ok(i64::from(value.as_raw()))
 }
 
 /// Runs image generation and returns an owned image batch handle.
 #[pd_host_function(name = "flint::diffusion::generate_image")]
-pub(super) fn sd_generate_image_impl(ctx_handle: i64, params_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_generate_image_impl(ctx_handle: i64, params_handle: i64) -> VmResult<i64> {
     let params = SD_IMG_PARAMS_HANDLES
         .lock()
         .map_err(|_| registry_error("image parameter"))?
@@ -413,7 +407,7 @@ pub(super) fn sd_generate_image_impl(ctx_handle: i64, params_handle: i64) -> VmR
         .lock()
         .map_err(|_| registry_error("image batch"))?
         .insert(handle, images);
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Saves one image from an owned image batch handle.
@@ -422,7 +416,7 @@ pub(super) fn sd_images_save_impl(
     images_handle: i64,
     index: i64,
     output_path: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let handles = SD_IMAGES_HANDLES
         .lock()
         .map_err(|_| registry_error("image batch"))?;
@@ -444,18 +438,18 @@ pub(super) fn sd_images_save_impl(
     images[index]
         .save(&output_path)
         .map_err(|err| host_error(format!("failed to save stable diffusion image: {err:#}")))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Drops an owned image batch handle.
 #[pd_host_function(name = "flint::diffusion::free_sd_images")]
-pub(super) fn sd_free_sd_images_impl(images_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn sd_free_sd_images_impl(images_handle: i64) -> VmResult<bool> {
     SD_IMAGES_HANDLES
         .lock()
         .map_err(|_| registry_error("image batch"))?
         .remove(&images_handle)
         .ok_or_else(|| unknown_handle("image batch", images_handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 fn prepare_native(package: StableDiffusionCpp) -> VmResult<()> {

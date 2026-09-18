@@ -18,9 +18,9 @@ use koharu_runtime::package::llama_cpp::LlamaCpp;
 use koharu_runtime::package::{Package, PreloadablePackage};
 use pd_host_function::pd_host_function;
 
-use crate::{CallOutcome, Value, VmResult};
+use crate::VmResult;
 
-use super::{host_error, native, return_int, return_value};
+use super::{host_error, native};
 
 static NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 static BACKENDS: LazyLock<Mutex<HashMap<i64, LlamaBackend>>> =
@@ -74,7 +74,7 @@ fn next_handle() -> i64 {
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::backend_init")]
-pub(super) fn llama_backend_init_impl(kind: &str) -> VmResult<CallOutcome> {
+pub(super) fn llama_backend_init_impl(kind: &str) -> VmResult<i64> {
     let directory = if Path::new(kind).is_dir() {
         let directory = Path::new(kind).to_path_buf();
         native::preload_directory(&directory, LLAMA_LIBRARY_PRELOAD_ORDER)
@@ -93,20 +93,20 @@ pub(super) fn llama_backend_init_impl(kind: &str) -> VmResult<CallOutcome> {
         .lock()
         .map_err(|_| registry_error("backend"))?
         .insert(handle, backend);
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::backend_supports_gpu_offload")]
-pub(super) fn llama_backend_supports_gpu_offload_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_backend_supports_gpu_offload_impl(handle: i64) -> VmResult<bool> {
     let backends = BACKENDS.lock().map_err(|_| registry_error("backend"))?;
     let backend = get(&backends, handle, "backend")?;
-    return_value(Value::Bool(backend.supports_gpu_offload()))
+    Ok(backend.supports_gpu_offload())
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::backend_list_devices")]
-pub(super) fn llama_backend_list_devices_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_backend_list_devices_impl(handle: i64) -> VmResult<String> {
     let backends = BACKENDS.lock().map_err(|_| registry_error("backend"))?;
     get(&backends, handle, "backend")?;
     let output = koharu_llama::list_llama_ggml_backend_devices()
@@ -119,53 +119,47 @@ pub(super) fn llama_backend_list_devices_impl(handle: i64) -> VmResult<CallOutco
         })
         .collect::<Vec<_>>()
         .join("\n");
-    return_value(Value::String(output.into()))
+    Ok(output)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::backend_free")]
-pub(super) fn llama_backend_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_backend_free_impl(handle: i64) -> VmResult<bool> {
     BACKENDS
         .lock()
         .map_err(|_| registry_error("backend"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("backend", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_params_init")]
-pub(super) fn llama_model_params_init_impl(backend_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_params_init_impl(backend_handle: i64) -> VmResult<i64> {
     ensure_backend(backend_handle)?;
     let handle = next_handle();
     MODEL_PARAMS
         .lock()
         .map_err(|_| registry_error("model params"))?
         .insert(handle, ModelParamsResource(LlamaModelParams::default()));
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_params_set_gpu_layers")]
-pub(super) fn llama_model_params_set_gpu_layers_impl(
-    handle: i64,
-    layers: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_params_set_gpu_layers_impl(handle: i64, layers: i64) -> VmResult<bool> {
     let layers = u32::try_from(layers)
         .map_err(|_| host_error("n_gpu_layers must be a non-negative uint32"))?;
     update_model_params(handle, |params| params.with_n_gpu_layers(layers))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_params_set_main_gpu")]
-pub(super) fn llama_model_params_set_main_gpu_impl(
-    handle: i64,
-    main_gpu: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_params_set_main_gpu_impl(handle: i64, main_gpu: i64) -> VmResult<bool> {
     let main_gpu = checked_i32(main_gpu, "main_gpu")?;
     update_model_params(handle, |params| params.with_main_gpu(main_gpu))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -174,11 +168,11 @@ pub(super) fn llama_model_params_set_memory_impl(
     handle: i64,
     use_mmap: bool,
     use_mlock: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     update_model_params(handle, |params| {
         params.with_use_mmap(use_mmap).with_use_mlock(use_mlock)
     })?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -187,7 +181,7 @@ pub(super) fn llama_model_load_impl(
     backend_handle: i64,
     params_handle: i64,
     path: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let backends = BACKENDS.lock().map_err(|_| registry_error("backend"))?;
     let backend = get(&backends, backend_handle, "backend")?;
     let params = MODEL_PARAMS
@@ -203,32 +197,32 @@ pub(super) fn llama_model_load_impl(
         .lock()
         .map_err(|_| registry_error("model"))?
         .insert(handle, Arc::new(model));
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_free")]
-pub(super) fn llama_model_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_free_impl(handle: i64) -> VmResult<bool> {
     MODELS
         .lock()
         .map_err(|_| registry_error("model"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("model", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_n_ctx_train")]
-pub(super) fn llama_model_n_ctx_train_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_n_ctx_train_impl(handle: i64) -> VmResult<i64> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
-    return_int(i64::from(get(&models, handle, "model")?.n_ctx_train()))
+    Ok(i64::from(get(&models, handle, "model")?.n_ctx_train()))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_n_vocab")]
-pub(super) fn llama_model_n_vocab_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_n_vocab_impl(handle: i64) -> VmResult<i64> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
-    return_int(i64::from(get(&models, handle, "model")?.n_vocab()))
+    Ok(i64::from(get(&models, handle, "model")?.n_vocab()))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -237,7 +231,7 @@ pub(super) fn llama_model_tokenize_impl(
     model_handle: i64,
     text: &str,
     add_bos: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
     let model = get(&models, model_handle, "model")?;
     let add_bos = if add_bos {
@@ -253,22 +247,20 @@ pub(super) fn llama_model_tokenize_impl(
         .lock()
         .map_err(|_| registry_error("tokens"))?
         .insert(handle, tokens);
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::model_is_eog")]
-pub(super) fn llama_model_is_eog_impl(model_handle: i64, token: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_model_is_eog_impl(model_handle: i64, token: i64) -> VmResult<bool> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
     let model = get(&models, model_handle, "model")?;
-    return_value(Value::Bool(
-        model.is_eog_token(LlamaToken::new(checked_i32(token, "token")?)),
-    ))
+    Ok(model.is_eog_token(LlamaToken::new(checked_i32(token, "token")?)))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::chat_template")]
-pub(super) fn llama_chat_template_impl(model_handle: i64, name: &str) -> VmResult<CallOutcome> {
+pub(super) fn llama_chat_template_impl(model_handle: i64, name: &str) -> VmResult<i64> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
     let model = get(&models, model_handle, "model")?;
     let template = model
@@ -279,18 +271,18 @@ pub(super) fn llama_chat_template_impl(model_handle: i64, name: &str) -> VmResul
         .lock()
         .map_err(|_| registry_error("chat template"))?
         .insert(handle, template);
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::chat_messages_init")]
-pub(super) fn llama_chat_messages_init_impl() -> VmResult<CallOutcome> {
+pub(super) fn llama_chat_messages_init_impl() -> VmResult<i64> {
     let handle = next_handle();
     CHAT_MESSAGES
         .lock()
         .map_err(|_| registry_error("chat messages"))?
         .insert(handle, Vec::new());
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -299,7 +291,7 @@ pub(super) fn llama_chat_messages_add_impl(
     handle: i64,
     role: &str,
     content: &str,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut messages = CHAT_MESSAGES
         .lock()
         .map_err(|_| registry_error("chat messages"))?;
@@ -307,7 +299,7 @@ pub(super) fn llama_chat_messages_add_impl(
     messages.push(
         LlamaChatMessage::new(role.to_owned(), content.to_owned()).map_err(llama_host_error)?,
     );
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -317,7 +309,7 @@ pub(super) fn llama_apply_chat_template_impl(
     template_handle: i64,
     messages_handle: i64,
     add_assistant: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<String> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
     let model = get(&models, model_handle, "model")?;
     let templates = CHAT_TEMPLATES
@@ -331,12 +323,12 @@ pub(super) fn llama_apply_chat_template_impl(
     let prompt = model
         .apply_chat_template(template, messages, add_assistant)
         .map_err(llama_host_error)?;
-    return_value(Value::String(prompt.into()))
+    Ok(prompt)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::chat_free")]
-pub(super) fn llama_chat_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_chat_free_impl(handle: i64) -> VmResult<bool> {
     let removed_template = CHAT_TEMPLATES
         .lock()
         .map_err(|_| registry_error("chat template"))?
@@ -350,20 +342,20 @@ pub(super) fn llama_chat_free_impl(handle: i64) -> VmResult<CallOutcome> {
     if !removed_template && !removed_messages {
         return Err(unknown_handle("chat resource", handle));
     }
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::tokens_len")]
-pub(super) fn llama_tokens_len_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_tokens_len_impl(handle: i64) -> VmResult<i64> {
     let lists = TOKEN_LISTS.lock().map_err(|_| registry_error("tokens"))?;
     let len = get(&lists, handle, "tokens")?.len();
-    return_int(i64::try_from(len).map_err(|_| host_error("token count exceeds int64"))?)
+    i64::try_from(len).map_err(|_| host_error("token count exceeds int64"))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::tokens_get")]
-pub(super) fn llama_tokens_get_impl(handle: i64, index: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_tokens_get_impl(handle: i64, index: i64) -> VmResult<i64> {
     let lists = TOKEN_LISTS.lock().map_err(|_| registry_error("tokens"))?;
     let list = get(&lists, handle, "tokens")?;
     let index =
@@ -371,30 +363,30 @@ pub(super) fn llama_tokens_get_impl(handle: i64, index: i64) -> VmResult<CallOut
     let token = list
         .get(index)
         .ok_or_else(|| host_error(format!("token index {index} is out of range")))?;
-    return_int(i64::from(token.0))
+    Ok(i64::from(token.0))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::tokens_free")]
-pub(super) fn llama_tokens_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_tokens_free_impl(handle: i64) -> VmResult<bool> {
     TOKEN_LISTS
         .lock()
         .map_err(|_| registry_error("tokens"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("tokens", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::context_params_init")]
-pub(super) fn llama_context_params_init_impl(backend_handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_context_params_init_impl(backend_handle: i64) -> VmResult<i64> {
     ensure_backend(backend_handle)?;
     let handle = next_handle();
     CONTEXT_PARAMS
         .lock()
         .map_err(|_| registry_error("context params"))?
         .insert(handle, LlamaContextParams::default());
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -404,7 +396,7 @@ pub(super) fn llama_context_params_set_sizes_impl(
     n_ctx: i64,
     n_batch: i64,
     n_ubatch: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let n_ctx = checked_u32(n_ctx, "n_ctx")?;
     let n_batch = checked_u32(n_batch, "n_batch")?;
     let n_ubatch = checked_u32(n_ubatch, "n_ubatch")?;
@@ -416,7 +408,7 @@ pub(super) fn llama_context_params_set_sizes_impl(
         .with_n_ctx(NonZeroU32::new(n_ctx))
         .with_n_batch(n_batch)
         .with_n_ubatch(n_ubatch);
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -425,7 +417,7 @@ pub(super) fn llama_context_params_set_threads_impl(
     handle: i64,
     n_threads: i64,
     n_threads_batch: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let n_threads = checked_i32(n_threads, "n_threads")?;
     let n_threads_batch = checked_i32(n_threads_batch, "n_threads_batch")?;
     let mut params = CONTEXT_PARAMS
@@ -435,7 +427,7 @@ pub(super) fn llama_context_params_set_threads_impl(
     *get_mut(&mut params, handle, "context params")? = current
         .with_n_threads(n_threads)
         .with_n_threads_batch(n_threads_batch);
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -444,7 +436,7 @@ pub(super) fn llama_context_new_impl(
     model_handle: i64,
     backend_handle: i64,
     params_handle: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let model = MODELS
         .lock()
         .map_err(|_| registry_error("model"))?
@@ -476,46 +468,43 @@ pub(super) fn llama_context_new_impl(
                 _model: model,
             },
         );
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::context_n_ctx")]
-pub(super) fn llama_context_n_ctx_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_context_n_ctx_impl(handle: i64) -> VmResult<i64> {
     let contexts = CONTEXTS.lock().map_err(|_| registry_error("context"))?;
-    return_int(i64::from(
+    Ok(i64::from(
         get(&contexts, handle, "context")?.context.n_ctx(),
     ))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::context_decode")]
-pub(super) fn llama_context_decode_impl(
-    context_handle: i64,
-    batch_handle: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn llama_context_decode_impl(context_handle: i64, batch_handle: i64) -> VmResult<bool> {
     let mut contexts = CONTEXTS.lock().map_err(|_| registry_error("context"))?;
     let context = &mut get_mut(&mut contexts, context_handle, "context")?.context;
     let mut batches = BATCHES.lock().map_err(|_| registry_error("batch"))?;
     let batch = &mut get_mut(&mut batches, batch_handle, "batch")?.0;
     context.decode(batch).map_err(llama_host_error)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::context_free")]
-pub(super) fn llama_context_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_context_free_impl(handle: i64) -> VmResult<bool> {
     CONTEXTS
         .lock()
         .map_err(|_| registry_error("context"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("context", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::batch_init")]
-pub(super) fn llama_batch_init_impl(capacity: i64, n_seq_max: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_batch_init_impl(capacity: i64, n_seq_max: i64) -> VmResult<i64> {
     let capacity =
         usize::try_from(capacity).map_err(|_| host_error("batch capacity must be non-negative"))?;
     let n_seq_max = checked_i32(n_seq_max, "n_seq_max")?;
@@ -524,7 +513,7 @@ pub(super) fn llama_batch_init_impl(capacity: i64, n_seq_max: i64) -> VmResult<C
         .lock()
         .map_err(|_| registry_error("batch"))?
         .insert(handle, BatchResource(LlamaBatch::new(capacity, n_seq_max)));
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -535,7 +524,7 @@ pub(super) fn llama_batch_add_impl(
     position: i64,
     sequence: i64,
     logits: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let mut batches = BATCHES.lock().map_err(|_| registry_error("batch"))?;
     get_mut(&mut batches, handle, "batch")?
         .0
@@ -546,7 +535,7 @@ pub(super) fn llama_batch_add_impl(
             logits,
         )
         .map_err(llama_host_error)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -556,7 +545,7 @@ pub(super) fn llama_batch_add_sequence_impl(
     tokens_handle: i64,
     sequence: i64,
     logits_all: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<bool> {
     let lists = TOKEN_LISTS.lock().map_err(|_| registry_error("tokens"))?;
     let tokens = get(&lists, tokens_handle, "tokens")?;
     let mut batches = BATCHES.lock().map_err(|_| registry_error("batch"))?;
@@ -564,31 +553,31 @@ pub(super) fn llama_batch_add_sequence_impl(
         .0
         .add_sequence(tokens, checked_i32(sequence, "sequence")?, logits_all)
         .map_err(llama_host_error)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::batch_clear")]
-pub(super) fn llama_batch_clear_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_batch_clear_impl(handle: i64) -> VmResult<bool> {
     let mut batches = BATCHES.lock().map_err(|_| registry_error("batch"))?;
     get_mut(&mut batches, handle, "batch")?.0.clear();
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::batch_free")]
-pub(super) fn llama_batch_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_batch_free_impl(handle: i64) -> VmResult<bool> {
     BATCHES
         .lock()
         .map_err(|_| registry_error("batch"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("batch", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_chain_init")]
-pub(super) fn llama_sampler_chain_init_impl(no_perf: bool) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_chain_init_impl(no_perf: bool) -> VmResult<i64> {
     let handle = next_handle();
     SAMPLERS
         .lock()
@@ -601,68 +590,60 @@ pub(super) fn llama_sampler_chain_init_impl(no_perf: bool) -> VmResult<CallOutco
                 sampler: None,
             },
         );
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_top_k")]
-pub(super) fn llama_sampler_add_top_k_impl(handle: i64, k: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_top_k_impl(handle: i64, k: i64) -> VmResult<bool> {
     add_sampler(handle, LlamaSampler::top_k(checked_i32(k, "top_k")?))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_top_p")]
-pub(super) fn llama_sampler_add_top_p_impl(
-    handle: i64,
-    p: f64,
-    min_keep: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_top_p_impl(handle: i64, p: f64, min_keep: i64) -> VmResult<bool> {
     add_sampler(
         handle,
         LlamaSampler::top_p(p as f32, checked_usize(min_keep, "min_keep")?),
     )?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_min_p")]
-pub(super) fn llama_sampler_add_min_p_impl(
-    handle: i64,
-    p: f64,
-    min_keep: i64,
-) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_min_p_impl(handle: i64, p: f64, min_keep: i64) -> VmResult<bool> {
     add_sampler(
         handle,
         LlamaSampler::min_p(p as f32, checked_usize(min_keep, "min_keep")?),
     )?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_temp")]
-pub(super) fn llama_sampler_add_temp_impl(handle: i64, temperature: f64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_temp_impl(handle: i64, temperature: f64) -> VmResult<bool> {
     add_sampler(handle, LlamaSampler::temp(temperature as f32))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_dist")]
-pub(super) fn llama_sampler_add_dist_impl(handle: i64, seed: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_dist_impl(handle: i64, seed: i64) -> VmResult<bool> {
     add_sampler(handle, LlamaSampler::dist(checked_u32(seed, "seed")?))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_add_greedy")]
-pub(super) fn llama_sampler_add_greedy_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_add_greedy_impl(handle: i64) -> VmResult<bool> {
     add_sampler(handle, LlamaSampler::greedy())?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_chain_build")]
-pub(super) fn llama_sampler_chain_build_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_chain_build_impl(handle: i64) -> VmResult<bool> {
     let mut samplers = SAMPLERS.lock().map_err(|_| registry_error("sampler"))?;
     let resource = get_mut(&mut samplers, handle, "sampler")?;
     if resource.sampler.is_some() {
@@ -673,7 +654,7 @@ pub(super) fn llama_sampler_chain_build_impl(handle: i64) -> VmResult<CallOutcom
     }
     let pending = std::mem::take(&mut resource.pending);
     resource.sampler = Some(LlamaSampler::chain(pending, resource.no_perf));
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -682,46 +663,46 @@ pub(super) fn llama_sampler_sample_impl(
     sampler_handle: i64,
     context_handle: i64,
     index: i64,
-) -> VmResult<CallOutcome> {
+) -> VmResult<i64> {
     let contexts = CONTEXTS.lock().map_err(|_| registry_error("context"))?;
     let context = &get(&contexts, context_handle, "context")?.context;
     let mut samplers = SAMPLERS.lock().map_err(|_| registry_error("sampler"))?;
     let sampler = ready_sampler(get_mut(&mut samplers, sampler_handle, "sampler")?)?;
     let token = sampler.sample(context, checked_i32(index, "index")?);
-    return_int(i64::from(token.0))
+    Ok(i64::from(token.0))
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_accept")]
-pub(super) fn llama_sampler_accept_impl(sampler_handle: i64, token: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_accept_impl(sampler_handle: i64, token: i64) -> VmResult<bool> {
     let mut samplers = SAMPLERS.lock().map_err(|_| registry_error("sampler"))?;
     let sampler = ready_sampler(get_mut(&mut samplers, sampler_handle, "sampler")?)?;
     sampler
         .try_accept(LlamaToken::new(checked_i32(token, "token")?))
         .map_err(llama_host_error)?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::sampler_free")]
-pub(super) fn llama_sampler_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_sampler_free_impl(handle: i64) -> VmResult<bool> {
     SAMPLERS
         .lock()
         .map_err(|_| registry_error("sampler"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("sampler", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::decoder_init")]
-pub(super) fn llama_decoder_init_impl() -> VmResult<CallOutcome> {
+pub(super) fn llama_decoder_init_impl() -> VmResult<i64> {
     let handle = next_handle();
     DECODERS
         .lock()
         .map_err(|_| registry_error("decoder"))?
         .insert(handle, UTF_8.new_decoder());
-    return_int(handle)
+    Ok(handle)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
@@ -731,7 +712,7 @@ pub(super) fn llama_decoder_push_impl(
     model_handle: i64,
     token: i64,
     special: bool,
-) -> VmResult<CallOutcome> {
+) -> VmResult<String> {
     let models = MODELS.lock().map_err(|_| registry_error("model"))?;
     let model = get(&models, model_handle, "model")?;
     let mut decoders = DECODERS.lock().map_err(|_| registry_error("decoder"))?;
@@ -744,18 +725,18 @@ pub(super) fn llama_decoder_push_impl(
             None,
         )
         .map_err(llama_host_error)?;
-    return_value(Value::String(piece.into()))
+    Ok(piece)
 }
 
 /// Exposes the corresponding koharu-llama operation to RustScript.
 #[pd_host_function(name = "flint::llama::decoder_free")]
-pub(super) fn llama_decoder_free_impl(handle: i64) -> VmResult<CallOutcome> {
+pub(super) fn llama_decoder_free_impl(handle: i64) -> VmResult<bool> {
     DECODERS
         .lock()
         .map_err(|_| registry_error("decoder"))?
         .remove(&handle)
         .ok_or_else(|| unknown_handle("decoder", handle))?;
-    return_value(Value::Bool(true))
+    Ok(true)
 }
 
 fn update_model_params(

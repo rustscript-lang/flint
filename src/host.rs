@@ -1,11 +1,17 @@
 mod cache;
 mod cli;
+mod context;
 mod diffusion;
 mod ggml;
 mod llama;
+mod modules;
 mod native;
 mod pair;
 mod runtime;
+
+pub use modules::{
+    FROZEN_RUSTSCRIPT_REV, flint_host_catalog, flint_host_modules, install_flint_host_modules,
+};
 
 use std::cell::{Cell, UnsafeCell};
 use std::collections::HashMap;
@@ -18,48 +24,9 @@ use image::imageops::FilterType;
 use koharu_torch::{Device, Kind, Tensor};
 use tokenizers::Tokenizer;
 use vm::{
-    CallOutcome, CallReturn, HostArgsFunction, Program, Value, Vm, VmError, VmResult, VmStatus,
+    CallOutcome, CallReturn, HostFunctionRegistry, Program, Value, Vm, VmError, VmResult, VmStatus,
     jit::JitConfig,
 };
-
-#[derive(Clone, Copy)]
-enum HostOp {
-    Context(fn(&mut TorchContext, &[Value]) -> VmResult<CallOutcome>),
-    Static(fn(&[Value]) -> VmResult<CallOutcome>),
-}
-
-struct BoundHost {
-    context: Arc<TorchContextCell>,
-    name: &'static str,
-    op: HostOp,
-}
-
-impl HostArgsFunction for BoundHost {
-    fn call(&mut self, args: &[Value]) -> VmResult<CallOutcome> {
-        let context = self.context.get();
-        let previous_host_op = context.active_host_op.replace(self.name);
-        if context.host_op_profile_enabled {
-            let started = Instant::now();
-            let outcome = self.op.call(context, args);
-            context.record_host_op(self.name, started.elapsed());
-            context.active_host_op = previous_host_op;
-            outcome
-        } else {
-            let outcome = self.op.call(context, args);
-            context.active_host_op = previous_host_op;
-            outcome
-        }
-    }
-}
-
-impl HostOp {
-    fn call(self, context: &mut TorchContext, args: &[Value]) -> VmResult<CallOutcome> {
-        match self {
-            Self::Context(op) => op(context, args),
-            Self::Static(op) => op(args),
-        }
-    }
-}
 
 thread_local! {
     static CURRENT_CONTEXT: Cell<*mut TorchContext> = const { Cell::new(std::ptr::null_mut()) };
@@ -81,6 +48,7 @@ impl TorchContextCell {
         }
     }
 
+    #[allow(clippy::mut_from_ref)]
     fn get(&self) -> &mut TorchContext {
         unsafe { &mut *self.inner.get() }
     }
@@ -438,16 +406,13 @@ impl TorchHostRuntime {
     }
 
     fn bind(&self, vm: &mut Vm) {
-        for (name, op) in HOST_OPS {
-            vm.bind_args_function(
-                *name,
-                Box::new(BoundHost {
-                    context: Arc::clone(&self.context),
-                    name: *name,
-                    op: *op,
-                }),
-            );
-        }
+        let catalog = flint_host_catalog();
+        let mut registry = HostFunctionRegistry::restricted();
+        install_flint_host_modules(&mut registry, catalog.as_ref())
+            .expect("flint descriptor modules must install");
+        registry
+            .bind_vm_cached(vm)
+            .expect("flint descriptor hosts must bind");
     }
 }
 
@@ -506,645 +471,6 @@ impl Default for ScriptRunner {
         Self::new()
     }
 }
-
-const HOST_OPS: &[(&str, HostOp)] = &[
-    (
-        "flint::cli::argument_parser",
-        HostOp::Static(cli::cli_argument_parser),
-    ),
-    (
-        "flint::cli::set_description",
-        HostOp::Static(cli::cli_set_description),
-    ),
-    ("flint::cli::refer", HostOp::Static(cli::cli_refer)),
-    (
-        "flint::cli::add_option",
-        HostOp::Static(cli::cli_add_option),
-    ),
-    (
-        "flint::cli::add_argument",
-        HostOp::Static(cli::cli_add_argument),
-    ),
-    ("flint::cli::required", HostOp::Static(cli::cli_required)),
-    ("flint::cli::metavar", HostOp::Static(cli::cli_metavar)),
-    (
-        "flint::cli::parse_args",
-        HostOp::Static(cli::cli_parse_args),
-    ),
-    ("flint::cli::get", HostOp::Static(cli::cli_get)),
-    (
-        "flint::runtime::args",
-        HostOp::Static(runtime::runtime_args),
-    ),
-    ("flint::runtime::arg", HostOp::Static(runtime::runtime_arg)),
-    (
-        "flint::runtime::arg_int",
-        HostOp::Static(runtime::runtime_arg_int),
-    ),
-    (
-        "flint::runtime::arg_int_or",
-        HostOp::Static(runtime::runtime_arg_int_or),
-    ),
-    (
-        "flint::runtime::arg_float_or",
-        HostOp::Static(runtime::runtime_arg_float_or),
-    ),
-    (
-        "flint::runtime::arg_or",
-        HostOp::Static(runtime::runtime_arg_or),
-    ),
-    (
-        "flint::runtime::input",
-        HostOp::Static(runtime::runtime_input),
-    ),
-    (
-        "flint::runtime::set_output",
-        HostOp::Static(runtime::runtime_set_output),
-    ),
-    (
-        "flint::runtime::set_text_output",
-        HostOp::Static(runtime::runtime_set_text_output),
-    ),
-    (
-        "flint::runtime::start_timer",
-        HostOp::Static(runtime::runtime_start_timer),
-    ),
-    (
-        "flint::runtime::start_decode_timer",
-        HostOp::Static(runtime::runtime_start_decode_timer),
-    ),
-    (
-        "flint::runtime::set_token_count",
-        HostOp::Static(runtime::runtime_set_token_count),
-    ),
-    (
-        "flint::runtime::set_decode_token_count",
-        HostOp::Static(runtime::runtime_set_decode_token_count),
-    ),
-    (
-        "flint::runtime::compact2",
-        HostOp::Static(runtime::runtime_compact2),
-    ),
-    ("flint::cache::clear", HostOp::Static(cache::cache_clear)),
-    ("flint::cache::has", HostOp::Static(cache::cache_has)),
-    ("flint::cache::get", HostOp::Static(cache::cache_get)),
-    ("flint::cache::set", HostOp::Static(cache::cache_set)),
-    (
-        "flint::ggml::load_backends",
-        HostOp::Static(ggml::ggml_load_backends),
-    ),
-    (
-        "flint::ggml::list_devices",
-        HostOp::Static(ggml::ggml_list_devices),
-    ),
-    (
-        "flint::ggml::stable_diffusion_package_dir",
-        HostOp::Static(ggml::ggml_stable_diffusion_package_dir),
-    ),
-    (
-        "flint::ggml::load_stable_diffusion_backends",
-        HostOp::Static(ggml::ggml_load_stable_diffusion_backends),
-    ),
-    (
-        "flint::ggml::list_stable_diffusion_devices",
-        HostOp::Static(ggml::ggml_list_stable_diffusion_devices),
-    ),
-    (
-        "flint::llama::backend_init",
-        HostOp::Static(llama::llama_backend_init),
-    ),
-    (
-        "flint::llama::backend_supports_gpu_offload",
-        HostOp::Static(llama::llama_backend_supports_gpu_offload),
-    ),
-    (
-        "flint::llama::backend_list_devices",
-        HostOp::Static(llama::llama_backend_list_devices),
-    ),
-    (
-        "flint::llama::backend_free",
-        HostOp::Static(llama::llama_backend_free),
-    ),
-    (
-        "flint::llama::model_params_init",
-        HostOp::Static(llama::llama_model_params_init),
-    ),
-    (
-        "flint::llama::model_params_set_gpu_layers",
-        HostOp::Static(llama::llama_model_params_set_gpu_layers),
-    ),
-    (
-        "flint::llama::model_params_set_main_gpu",
-        HostOp::Static(llama::llama_model_params_set_main_gpu),
-    ),
-    (
-        "flint::llama::model_params_set_memory",
-        HostOp::Static(llama::llama_model_params_set_memory),
-    ),
-    (
-        "flint::llama::model_load",
-        HostOp::Static(llama::llama_model_load),
-    ),
-    (
-        "flint::llama::model_free",
-        HostOp::Static(llama::llama_model_free),
-    ),
-    (
-        "flint::llama::model_n_ctx_train",
-        HostOp::Static(llama::llama_model_n_ctx_train),
-    ),
-    (
-        "flint::llama::model_n_vocab",
-        HostOp::Static(llama::llama_model_n_vocab),
-    ),
-    (
-        "flint::llama::model_tokenize",
-        HostOp::Static(llama::llama_model_tokenize),
-    ),
-    (
-        "flint::llama::model_is_eog",
-        HostOp::Static(llama::llama_model_is_eog),
-    ),
-    (
-        "flint::llama::chat_template",
-        HostOp::Static(llama::llama_chat_template),
-    ),
-    (
-        "flint::llama::chat_messages_init",
-        HostOp::Static(llama::llama_chat_messages_init),
-    ),
-    (
-        "flint::llama::chat_messages_add",
-        HostOp::Static(llama::llama_chat_messages_add),
-    ),
-    (
-        "flint::llama::apply_chat_template",
-        HostOp::Static(llama::llama_apply_chat_template),
-    ),
-    (
-        "flint::llama::chat_free",
-        HostOp::Static(llama::llama_chat_free),
-    ),
-    (
-        "flint::llama::tokens_len",
-        HostOp::Static(llama::llama_tokens_len),
-    ),
-    (
-        "flint::llama::tokens_get",
-        HostOp::Static(llama::llama_tokens_get),
-    ),
-    (
-        "flint::llama::tokens_free",
-        HostOp::Static(llama::llama_tokens_free),
-    ),
-    (
-        "flint::llama::context_params_init",
-        HostOp::Static(llama::llama_context_params_init),
-    ),
-    (
-        "flint::llama::context_params_set_sizes",
-        HostOp::Static(llama::llama_context_params_set_sizes),
-    ),
-    (
-        "flint::llama::context_params_set_threads",
-        HostOp::Static(llama::llama_context_params_set_threads),
-    ),
-    (
-        "flint::llama::context_new",
-        HostOp::Static(llama::llama_context_new),
-    ),
-    (
-        "flint::llama::context_n_ctx",
-        HostOp::Static(llama::llama_context_n_ctx),
-    ),
-    (
-        "flint::llama::context_decode",
-        HostOp::Static(llama::llama_context_decode),
-    ),
-    (
-        "flint::llama::context_free",
-        HostOp::Static(llama::llama_context_free),
-    ),
-    (
-        "flint::llama::batch_init",
-        HostOp::Static(llama::llama_batch_init),
-    ),
-    (
-        "flint::llama::batch_add",
-        HostOp::Static(llama::llama_batch_add),
-    ),
-    (
-        "flint::llama::batch_add_sequence",
-        HostOp::Static(llama::llama_batch_add_sequence),
-    ),
-    (
-        "flint::llama::batch_clear",
-        HostOp::Static(llama::llama_batch_clear),
-    ),
-    (
-        "flint::llama::batch_free",
-        HostOp::Static(llama::llama_batch_free),
-    ),
-    (
-        "flint::llama::sampler_chain_init",
-        HostOp::Static(llama::llama_sampler_chain_init),
-    ),
-    (
-        "flint::llama::sampler_add_top_k",
-        HostOp::Static(llama::llama_sampler_add_top_k),
-    ),
-    (
-        "flint::llama::sampler_add_top_p",
-        HostOp::Static(llama::llama_sampler_add_top_p),
-    ),
-    (
-        "flint::llama::sampler_add_min_p",
-        HostOp::Static(llama::llama_sampler_add_min_p),
-    ),
-    (
-        "flint::llama::sampler_add_temp",
-        HostOp::Static(llama::llama_sampler_add_temp),
-    ),
-    (
-        "flint::llama::sampler_add_dist",
-        HostOp::Static(llama::llama_sampler_add_dist),
-    ),
-    (
-        "flint::llama::sampler_add_greedy",
-        HostOp::Static(llama::llama_sampler_add_greedy),
-    ),
-    (
-        "flint::llama::sampler_chain_build",
-        HostOp::Static(llama::llama_sampler_chain_build),
-    ),
-    (
-        "flint::llama::sampler_sample",
-        HostOp::Static(llama::llama_sampler_sample),
-    ),
-    (
-        "flint::llama::sampler_accept",
-        HostOp::Static(llama::llama_sampler_accept),
-    ),
-    (
-        "flint::llama::sampler_free",
-        HostOp::Static(llama::llama_sampler_free),
-    ),
-    (
-        "flint::llama::decoder_init",
-        HostOp::Static(llama::llama_decoder_init),
-    ),
-    (
-        "flint::llama::decoder_push",
-        HostOp::Static(llama::llama_decoder_push),
-    ),
-    (
-        "flint::llama::decoder_free",
-        HostOp::Static(llama::llama_decoder_free),
-    ),
-    (
-        "flint::diffusion::ctx_params_init",
-        HostOp::Static(diffusion::sd_ctx_params_init),
-    ),
-    (
-        "flint::diffusion::ctx_params_set_paths",
-        HostOp::Static(diffusion::sd_ctx_params_set_paths),
-    ),
-    (
-        "flint::diffusion::ctx_params_set_backend",
-        HostOp::Static(diffusion::sd_ctx_params_set_backend),
-    ),
-    (
-        "flint::diffusion::ctx_params_set_wtype",
-        HostOp::Static(diffusion::sd_ctx_params_set_wtype),
-    ),
-    (
-        "flint::diffusion::ctx_params_set_vae_format",
-        HostOp::Static(diffusion::sd_ctx_params_set_vae_format),
-    ),
-    (
-        "flint::diffusion::ctx_params_set_flags",
-        HostOp::Static(diffusion::sd_ctx_params_set_flags),
-    ),
-    (
-        "flint::diffusion::new_sd_ctx",
-        HostOp::Static(diffusion::sd_new_sd_ctx),
-    ),
-    (
-        "flint::diffusion::free_sd_ctx",
-        HostOp::Static(diffusion::sd_free_sd_ctx),
-    ),
-    (
-        "flint::diffusion::img_gen_params_init",
-        HostOp::Static(diffusion::sd_img_gen_params_init),
-    ),
-    (
-        "flint::diffusion::img_gen_params_set_prompt",
-        HostOp::Static(diffusion::sd_img_gen_params_set_prompt),
-    ),
-    (
-        "flint::diffusion::img_gen_params_set_size",
-        HostOp::Static(diffusion::sd_img_gen_params_set_size),
-    ),
-    (
-        "flint::diffusion::img_gen_params_set_sample",
-        HostOp::Static(diffusion::sd_img_gen_params_set_sample),
-    ),
-    (
-        "flint::diffusion::img_gen_params_set_sampler",
-        HostOp::Static(diffusion::sd_img_gen_params_set_sampler),
-    ),
-    (
-        "flint::diffusion::str_to_sample_method",
-        HostOp::Static(diffusion::sd_str_to_sample_method),
-    ),
-    (
-        "flint::diffusion::str_to_scheduler",
-        HostOp::Static(diffusion::sd_str_to_scheduler),
-    ),
-    (
-        "flint::diffusion::sample_method_name",
-        HostOp::Static(diffusion::sd_sample_method_name),
-    ),
-    (
-        "flint::diffusion::scheduler_name",
-        HostOp::Static(diffusion::sd_scheduler_name),
-    ),
-    (
-        "flint::diffusion::get_default_sample_method",
-        HostOp::Static(diffusion::sd_get_default_sample_method),
-    ),
-    (
-        "flint::diffusion::get_default_scheduler",
-        HostOp::Static(diffusion::sd_get_default_scheduler),
-    ),
-    (
-        "flint::diffusion::generate_image",
-        HostOp::Static(diffusion::sd_generate_image),
-    ),
-    (
-        "flint::diffusion::images_save",
-        HostOp::Static(diffusion::sd_images_save),
-    ),
-    (
-        "flint::diffusion::free_sd_images",
-        HostOp::Static(diffusion::sd_free_sd_images),
-    ),
-    ("flint::tokenizer::load", HostOp::Context(tokenizer_load)),
-    (
-        "flint::tokenizer::encode_chat",
-        HostOp::Context(tokenizer_encode_chat),
-    ),
-    (
-        "flint::tokenizer::encode_vl_chat",
-        HostOp::Context(tokenizer_encode_vl_chat),
-    ),
-    (
-        "flint::tokenizer::encode_padded",
-        HostOp::Context(tokenizer_encode_padded),
-    ),
-    (
-        "flint::tokenizer::format_token_labels",
-        HostOp::Context(tokenizer_format_token_labels),
-    ),
-    (
-        "flint::tokenizer::decode_generated",
-        HostOp::Context(tokenizer_decode_generated),
-    ),
-    (
-        "flint::tokenizer::append_token",
-        HostOp::Context(tokenizer_append_token),
-    ),
-    (
-        "flint::tokenizer::append_token_tensor",
-        HostOp::Context(tokenizer_append_token_tensor),
-    ),
-    (
-        "flint::tokenizer::clear_generated_tokens",
-        HostOp::Context(tokenizer_clear_generated_tokens),
-    ),
-    (
-        "flint::tokenizer::push_generated_token_tensor",
-        HostOp::Context(tokenizer_push_generated_token_tensor),
-    ),
-    (
-        "flint::tokenizer::decode_generated_tokens",
-        HostOp::Context(tokenizer_decode_generated_tokens),
-    ),
-    (
-        "flint::tokenizer::single_token",
-        HostOp::Context(tokenizer_single_token),
-    ),
-    (
-        "flint::tokenizer::is_eos",
-        HostOp::Context(tokenizer_is_eos),
-    ),
-    ("flint::weights::load", HostOp::Context(weights_load)),
-    ("flint::weights::get", HostOp::Context(weights_get)),
-    (
-        "flint::weights::get_indexed",
-        HostOp::Context(weights_get_indexed),
-    ),
-    ("flint::weights::get_or", HostOp::Context(weights_get_or)),
-    (
-        "flint::weights::get_optional",
-        HostOp::Context(weights_get_optional),
-    ),
-    ("flint::pair::new", HostOp::Static(pair::pair_new)),
-    ("flint::pair::local", HostOp::Static(pair::pair_local)),
-    ("flint::pair::global", HostOp::Static(pair::pair_global)),
-    ("flint::tensor::size", HostOp::Context(tensor_size)),
-    ("flint::tensor::shape", HostOp::Context(tensor_shape)),
-    (
-        "flint::tensor::save_safetensors",
-        HostOp::Context(tensor_save_safetensors),
-    ),
-    (
-        "flint::tensor::load_safetensors",
-        HostOp::Context(tensor_load_safetensors),
-    ),
-    ("flint::tensor::to_float", HostOp::Context(tensor_to_float)),
-    (
-        "flint::tensor::to_bfloat16",
-        HostOp::Context(tensor_to_bfloat16),
-    ),
-    (
-        "flint::tensor::ones_like",
-        HostOp::Context(tensor_ones_like),
-    ),
-    (
-        "flint::tensor::zeros_like",
-        HostOp::Context(tensor_zeros_like),
-    ),
-    (
-        "flint::tensor::zeros_like_int",
-        HostOp::Context(tensor_zeros_like_int),
-    ),
-    ("flint::tensor::arange", HostOp::Context(tensor_arange)),
-    (
-        "flint::tensor::arange_start",
-        HostOp::Context(tensor_arange_start),
-    ),
-    (
-        "flint::tensor::causal_mask",
-        HostOp::Context(tensor_causal_mask),
-    ),
-    (
-        "flint::tensor::causal_padding_mask",
-        HostOp::Context(tensor_causal_padding_mask),
-    ),
-    (
-        "flint::tensor::padding_mask",
-        HostOp::Context(tensor_padding_mask),
-    ),
-    ("flint::tensor::rope_cos", HostOp::Context(tensor_rope_cos)),
-    ("flint::tensor::rope_sin", HostOp::Context(tensor_rope_sin)),
-    (
-        "flint::tensor::rope_cos_at",
-        HostOp::Context(tensor_rope_cos_at),
-    ),
-    (
-        "flint::tensor::rope_sin_at",
-        HostOp::Context(tensor_rope_sin_at),
-    ),
-    ("flint::tensor::add", HostOp::Context(tensor_add)),
-    ("flint::tensor::sub", HostOp::Context(tensor_sub)),
-    ("flint::tensor::mul", HostOp::Context(tensor_mul)),
-    (
-        "flint::tensor::add_scalar",
-        HostOp::Context(tensor_add_scalar),
-    ),
-    (
-        "flint::tensor::mul_scalar",
-        HostOp::Context(tensor_mul_scalar),
-    ),
-    (
-        "flint::tensor::div_scalar",
-        HostOp::Context(tensor_div_scalar),
-    ),
-    (
-        "flint::tensor::pow_scalar",
-        HostOp::Context(tensor_pow_scalar),
-    ),
-    ("flint::tensor::mean_dim", HostOp::Context(tensor_mean_dim)),
-    ("flint::tensor::rsqrt", HostOp::Context(tensor_rsqrt)),
-    ("flint::tensor::neg", HostOp::Context(tensor_neg)),
-    ("flint::tensor::cos", HostOp::Context(tensor_cos)),
-    ("flint::tensor::sin", HostOp::Context(tensor_sin)),
-    ("flint::tensor::matmul", HostOp::Context(tensor_matmul)),
-    ("flint::tensor::softmax", HostOp::Context(tensor_softmax)),
-    (
-        "flint::tensor::masked_fill",
-        HostOp::Context(tensor_masked_fill),
-    ),
-    ("flint::tensor::cat2", HostOp::Context(tensor_cat2)),
-    ("flint::tensor::stack2", HostOp::Context(tensor_stack2)),
-    ("flint::tensor::chunk", HostOp::Context(tensor_chunk)),
-    ("flint::tensor::narrow", HostOp::Context(tensor_narrow)),
-    ("flint::tensor::tail", HostOp::Context(tensor_tail)),
-    (
-        "flint::tensor::transpose",
-        HostOp::Context(tensor_transpose),
-    ),
-    (
-        "flint::tensor::unsqueeze",
-        HostOp::Context(tensor_unsqueeze),
-    ),
-    (
-        "flint::tensor::repeat_interleave",
-        HostOp::Context(tensor_repeat_interleave),
-    ),
-    (
-        "flint::tensor::argmax_int",
-        HostOp::Context(tensor_argmax_int),
-    ),
-    ("flint::tensor::argmax", HostOp::Context(tensor_argmax)),
-    (
-        "flint::tensor::argmax_token",
-        HostOp::Context(tensor_argmax_token),
-    ),
-    (
-        "flint::tensor::pad_reflect2d",
-        HostOp::Context(tensor_pad_reflect2d),
-    ),
-    ("flint::tensor::relu", HostOp::Context(tensor_relu)),
-    ("flint::tensor::sigmoid", HostOp::Context(tensor_sigmoid)),
-    ("flint::tensor::silu", HostOp::Context(tensor_silu)),
-    ("flint::tensor::gelu", HostOp::Context(tensor_gelu)),
-    ("flint::tensor::swiglu", HostOp::Context(tensor_swiglu)),
-    (
-        "flint::tensor::contiguous",
-        HostOp::Context(tensor_contiguous),
-    ),
-    ("flint::tensor::permute3", HostOp::Context(tensor_permute3)),
-    ("flint::tensor::permute4", HostOp::Context(tensor_permute4)),
-    ("flint::tensor::permute5", HostOp::Context(tensor_permute5)),
-    ("flint::tensor::view2", HostOp::Context(tensor_view2)),
-    ("flint::tensor::view3", HostOp::Context(tensor_view3)),
-    ("flint::tensor::view4", HostOp::Context(tensor_view4)),
-    ("flint::tensor::view5", HostOp::Context(tensor_view5)),
-    ("flint::tensor::select", HostOp::Context(tensor_select)),
-    ("flint::tensor::real", HostOp::Context(tensor_real)),
-    ("flint::tensor::imag", HostOp::Context(tensor_imag)),
-    ("flint::tensor::complex", HostOp::Context(tensor_complex)),
-    (
-        "flint::tensor::fft_rfftn2",
-        HostOp::Context(tensor_fft_rfftn2),
-    ),
-    (
-        "flint::tensor::fft_irfftn2",
-        HostOp::Context(tensor_fft_irfftn2),
-    ),
-    (
-        "flint::tensor::avg_pool2d_2",
-        HostOp::Context(tensor_avg_pool2d_2),
-    ),
-    ("flint::nn::embedding", HostOp::Context(nn_embedding)),
-    ("flint::nn::linear", HostOp::Context(nn_linear)),
-    ("flint::nn::layer_norm", HostOp::Context(nn_layer_norm)),
-    (
-        "flint::nn::swiglu_linear",
-        HostOp::Context(nn_swiglu_linear),
-    ),
-    ("flint::nn::rms_norm", HostOp::Context(nn_rms_norm)),
-    ("flint::nn::add_rms_norm", HostOp::Context(nn_add_rms_norm)),
-    ("flint::nn::apply_rope", HostOp::Context(nn_apply_rope)),
-    (
-        "flint::nn::apply_rope_pair",
-        HostOp::Context(nn_apply_rope_pair),
-    ),
-    (
-        "flint::nn::scaled_dot_product_attention",
-        HostOp::Context(nn_scaled_dot_product_attention),
-    ),
-    (
-        "flint::nn::scaled_dot_product_attention_masked",
-        HostOp::Context(nn_scaled_dot_product_attention_masked),
-    ),
-    ("flint::nn::conv1d", HostOp::Context(nn_conv1d)),
-    ("flint::nn::conv1d_step", HostOp::Context(nn_conv1d_step)),
-    ("flint::nn::conv2d", HostOp::Context(nn_conv2d)),
-    (
-        "flint::nn::conv_transpose2d",
-        HostOp::Context(nn_conv_transpose2d),
-    ),
-    ("flint::nn::batch_norm2d", HostOp::Context(nn_batch_norm2d)),
-    (
-        "flint::image::lfm2_vl_patches",
-        HostOp::Context(image_lfm2_vl_patches),
-    ),
-    (
-        "flint::vl::siglip2_position_embedding",
-        HostOp::Context(vl_siglip2_position_embedding),
-    ),
-    (
-        "flint::vl::pixel_unshuffle2",
-        HostOp::Context(vl_pixel_unshuffle2),
-    ),
-    (
-        "flint::vl::scatter_image_embeddings",
-        HostOp::Context(vl_scatter_image_embeddings),
-    ),
-];
 
 fn host_error(message: impl Into<String>) -> VmError {
     VmError::HostError(message.into())
@@ -1215,6 +541,7 @@ fn value_kind(value: &Value) -> &'static str {
         Value::Bytes(_) => "bytes",
         Value::Array(_) => "array",
         Value::Map(_) => "map",
+        Value::Callable(_) => "callable",
     }
 }
 
@@ -1383,7 +710,7 @@ fn read_weight_safetensors(path: &Path) -> VmResult<Vec<(String, Tensor)>> {
 fn weights_get(context: &mut TorchContext, args: &[Value]) -> VmResult<CallOutcome> {
     let name = string_arg(args, 0, "name")?;
     if let Some(handle) = cached_weight_handle(context, name) {
-        return return_int(handle);
+        return_int(handle)
     } else {
         let tensor = get_or_build_weight(context, name)?;
         return_weight_tensor(context, name, tensor)
@@ -2704,10 +2031,10 @@ fn nn_conv1d(context: &mut TorchContext, args: &[Value]) -> VmResult<CallOutcome
                 let w1 = weight_float.select(2, 1).view([1, groups, 1]);
                 let w2 = weight_float.select(2, 2).view([1, groups, 1]);
                 let mut output = padded.narrow(2, 0, out_len) * w0;
-                output = output + padded.narrow(2, 1, out_len) * w1;
-                output = output + padded.narrow(2, 2, out_len) * w2;
+                output += padded.narrow(2, 1, out_len) * w1;
+                output += padded.narrow(2, 2, out_len) * w2;
                 if let Some(bias) = bias.as_ref() {
-                    output = output + bias.to_kind(Kind::Float).view([1, groups, 1]);
+                    output += bias.to_kind(Kind::Float).view([1, groups, 1]);
                 }
                 output
             } else {

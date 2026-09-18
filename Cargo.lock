@@ -1865,7 +1865,6 @@ dependencies = [
 [[package]]
 name = "koharu-diffusion"
 version = "0.62.0-alpha.1"
-source = "git+https://github.com/mayocream/koharu.git?branch=refactor%2F0705#3a832b5dda50ce4d86d8a703535b46d6592e24e0"
 dependencies = [
  "image",
  "koharu-diffusion-sys",
@@ -2485,15 +2484,27 @@ dependencies = [
 [[package]]
 name = "pd-host-function"
 version = "0.1.0"
+source = "git+https://github.com/rustscript-lang/rustscript?rev=b1d6cffede77f49410bf63525f30b9a46b02dc01#b1d6cffede77f49410bf63525f30b9a46b02dc01"
 dependencies = [
+ "pd-host-schema",
  "proc-macro2",
  "quote",
  "syn",
 ]
 
 [[package]]
+name = "pd-host-schema"
+version = "0.1.0"
+source = "git+https://github.com/rustscript-lang/rustscript?rev=b1d6cffede77f49410bf63525f30b9a46b02dc01#b1d6cffede77f49410bf63525f30b9a46b02dc01"
+dependencies = [
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
 name = "pd-vm"
 version = "0.1.0"
+source = "git+https://github.com/rustscript-lang/rustscript?rev=b1d6cffede77f49410bf63525f30b9a46b02dc01#b1d6cffede77f49410bf63525f30b9a46b02dc01"
 dependencies = [
  "base64 0.22.1",
  "cranelift-codegen",
@@ -2505,8 +2516,10 @@ dependencies = [
  "libc",
  "paste",
  "pd-host-function",
+ "pd-host-schema",
  "regex",
  "rt-format",
+ "self_cell",
  "serde",
  "serde_json",
  "syn",
@@ -3399,6 +3412,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "self_cell"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ab42ca02749e120097e328d91d415325bdf43b1c72c4c8badf37375fe40a813"
 
 [[package]]
 name = "semver"
