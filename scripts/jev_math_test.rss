@@ -1,0 +1,17 @@
+use math;
+use self::jev_math as decisions;
+
+let equal: [float] = decisions::normalize([-100000.0, -100000.0], 1.0);
+assert(equal.length == 2);
+assert(math::abs(equal.copy()[0] - 0.5) < 0.000001);
+assert(math::abs(equal.copy()[1] - 0.5) < 0.000001);
+assert(decisions::best_index(equal.copy()) == 0);
+
+let peaked: [float] = decisions::normalize([-2.0, -1000.0, -5.0], 0.5);
+assert(peaked.copy()[0] > peaked.copy()[2]);
+assert(peaked.copy()[2] > peaked.copy()[1]);
+assert(math::abs(peaked.copy()[0] + peaked.copy()[1] + peaked.copy()[2] - 1.0) < 0.000001);
+assert(decisions::best_index(peaked.copy()) == 0);
+
+let flat: [float] = decisions::normalize([-2.0, -5.0], 100.0);
+assert(flat.copy()[0] < peaked.copy()[0]);

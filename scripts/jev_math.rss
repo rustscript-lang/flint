@@ -1,0 +1,45 @@
+use math;
+
+// Convert candidate log-likelihoods into an uncalibrated distribution.
+// Subtract the maximum before exponentiation to avoid overflow.
+pub fn normalize(scores: [float], temperature: float) -> [float] {
+    assert(scores.length > 0);
+    assert(temperature > 0.0 && math::is_finite(temperature));
+    let mut maximum: float = scores.copy()[0];
+    let mut i: int = 0;
+    while i < scores.length {
+        assert(math::is_finite(scores.copy()[i]));
+        if scores.copy()[i] > maximum {
+            maximum = scores.copy()[i];
+        }
+        i = i + 1;
+    }
+    let mut total: float = 0.0;
+    i = 0;
+    while i < scores.length {
+        total = total + math::exp((scores.copy()[i] - maximum) / temperature);
+        i = i + 1;
+    }
+    assert(total > 0.0 && math::is_finite(total));
+    let mut result: [float] = [];
+    i = 0;
+    while i < scores.length {
+        result[result.length] = math::exp((scores.copy()[i] - maximum) / temperature) / total;
+        i = i + 1;
+    }
+    result
+}
+
+// Preserve input order when two candidates have equal probability.
+pub fn best_index(probabilities: [float]) -> int {
+    assert(probabilities.length > 0);
+    let mut best: int = 0;
+    let mut i: int = 1;
+    while i < probabilities.length {
+        if probabilities.copy()[i] > probabilities.copy()[best] {
+            best = i;
+        }
+        i = i + 1;
+    }
+    best
+}
