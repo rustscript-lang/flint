@@ -1,0 +1,242 @@
+[
+  {
+    "id": "medal_silver",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Where is the silver medal?",
+    "paraphrase": "Which cabinet contains the silver medal?",
+    "choices": [
+      "North cabinet",
+      "South cabinet"
+    ],
+    "gold": "North cabinet",
+    "tag": "lookup"
+  },
+  {
+    "id": "medal_bronze",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Where is the bronze medal?",
+    "paraphrase": "Which cabinet holds the bronze medal?",
+    "choices": [
+      "North cabinet",
+      "South cabinet"
+    ],
+    "gold": "South cabinet",
+    "tag": "lookup"
+  },
+  {
+    "id": "north_locked",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Is the north cabinet locked?",
+    "paraphrase": "Is the north cabinet secured by a lock?",
+    "choices": [
+      "Yes",
+      "No"
+    ],
+    "gold": "Yes",
+    "tag": "lookup"
+  },
+  {
+    "id": "south_open",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Is the south cabinet open?",
+    "paraphrase": "Does the south cabinet stand open?",
+    "choices": [
+      "No",
+      "Yes"
+    ],
+    "gold": "Yes",
+    "tag": "lookup"
+  },
+  {
+    "id": "ada_arrival",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "At what time does Ada arrive?",
+    "paraphrase": "When does Ada enter the museum?",
+    "choices": [
+      "14:20",
+      "14:35"
+    ],
+    "gold": "14:20",
+    "tag": "lookup"
+  },
+  {
+    "id": "ben_arrival",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "At what time does Ben arrive?",
+    "paraphrase": "When does Ben enter the museum?",
+    "choices": [
+      "14:20",
+      "14:35"
+    ],
+    "gold": "14:35",
+    "tag": "lookup"
+  },
+  {
+    "id": "ada_departure",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "When does Ada leave?",
+    "paraphrase": "At what time does Ada depart?",
+    "choices": [
+      "15:00",
+      "15:10"
+    ],
+    "gold": "15:00",
+    "tag": "lookup"
+  },
+  {
+    "id": "ben_departure",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "When does Ben leave?",
+    "paraphrase": "At what time does Ben depart?",
+    "choices": [
+      "15:00",
+      "15:10"
+    ],
+    "gold": "15:10",
+    "tag": "lookup"
+  },
+  {
+    "id": "ada_duration",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How long is Ada at the museum?",
+    "paraphrase": "How much time passes between Ada’s arrival and departure?",
+    "choices": [
+      "Forty minutes",
+      "Fifty minutes"
+    ],
+    "gold": "Forty minutes",
+    "tag": "time"
+  },
+  {
+    "id": "ben_duration",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How long is Ben at the museum?",
+    "paraphrase": "How much time passes between Ben’s arrival and departure?",
+    "choices": [
+      "Thirty-five minutes",
+      "Forty minutes"
+    ],
+    "gold": "Thirty-five minutes",
+    "tag": "time"
+  },
+  {
+    "id": "cards_remaining",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How many cards remain on the table?",
+    "paraphrase": "After Ben removes cards, what is the table’s card count?",
+    "choices": [
+      "Four",
+      "Six"
+    ],
+    "gold": "Four",
+    "tag": "arithmetic"
+  },
+  {
+    "id": "flowers_total",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How many flowers are in the vase?",
+    "paraphrase": "What is the combined flower count?",
+    "choices": [
+      "Five",
+      "Four"
+    ],
+    "gold": "Five",
+    "tag": "arithmetic"
+  },
+  {
+    "id": "flowers_majority",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Which flower color is more numerous?",
+    "paraphrase": "Are there more white or purple flowers?",
+    "choices": [
+      "Purple",
+      "White"
+    ],
+    "gold": "White",
+    "tag": "comparison"
+  },
+  {
+    "id": "nix_age",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How old is Nix?",
+    "paraphrase": "What age, if any, is recorded for Nix?",
+    "choices": [
+      "Two years",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "nix_species",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Which species is Nix?",
+    "paraphrase": "What species, if any, is Nix identified as?",
+    "choices": [
+      "Cannot determine",
+      "Sparrow"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "cabinet_color",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "What color is the north cabinet?",
+    "paraphrase": "What color, if any, is specified for the north cabinet?",
+    "choices": [
+      "Blue",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "country_france",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Which country contains the museum?",
+    "paraphrase": "What nation is the museum located in?",
+    "choices": [
+      "France",
+      "Japan"
+    ],
+    "gold": "France",
+    "tag": "lookup"
+  },
+  {
+    "id": "ada_before_ben",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Did Ada arrive before Ben?",
+    "paraphrase": "Who arrived first: was it Ada?",
+    "choices": [
+      "No",
+      "Yes"
+    ],
+    "gold": "Yes",
+    "tag": "time"
+  },
+  {
+    "id": "cards_initial",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "How many cards did Ada put down?",
+    "paraphrase": "What was the starting card count from Ada?",
+    "choices": [
+      "Six",
+      "Four"
+    ],
+    "gold": "Six",
+    "tag": "lookup"
+  },
+  {
+    "id": "vase_location",
+    "state": "In a museum, a silver medal is stored in the north cabinet. A bronze medal is in the south cabinet. The north cabinet is locked; the south cabinet is open. Curator Ada arrives at 14:20 and leaves at 15:00. Visitor Ben arrives at 14:35 and leaves at 15:10. Ada places 6 cards on a table and Ben removes 2 cards. A vase contains 4 white flowers and 1 purple flower. There is a bird called Nix, but its species and age are not recorded. The museum is in Lyon, France.",
+    "prompt": "Which cabinet holds the vase?",
+    "paraphrase": "Which cabinet, if any, is the vase stored in?",
+    "choices": [
+      "South cabinet",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  }
+]

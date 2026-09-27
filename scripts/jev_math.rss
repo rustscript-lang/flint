@@ -30,6 +30,21 @@ pub fn normalize(scores: [float], temperature: float) -> [float] {
     result
 }
 
+// Compare candidate average log probability per candidate token.
+// This changes rankings for unequal token counts; it is not a calibrated confidence.
+pub fn per_token(scores: [float], counts: [float]) -> [float] {
+    assert(scores.length > 0 && scores.length == counts.length);
+    let mut result: [float] = [];
+    let mut i: int = 0;
+    while i < scores.length {
+        assert(math::is_finite(scores.copy()[i]));
+        assert(counts.copy()[i] > 0.0 && math::is_finite(counts.copy()[i]));
+        result[result.length] = scores.copy()[i] / counts.copy()[i];
+        i = i + 1;
+    }
+    result
+}
+
 // Preserve input order when two candidates have equal probability.
 pub fn best_index(probabilities: [float]) -> int {
     assert(probabilities.length > 0);

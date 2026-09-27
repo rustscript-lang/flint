@@ -1,0 +1,338 @@
+[
+  {
+    "id": "blue_where",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Where is the blue cup?",
+    "paraphrase": "In which room is the blue cup?",
+    "choices": [
+      "Kitchen",
+      "Bedroom"
+    ],
+    "gold": "Kitchen",
+    "tag": "lookup"
+  },
+  {
+    "id": "red_where",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Where is the red cup?",
+    "paraphrase": "In which room is the red cup?",
+    "choices": [
+      "Kitchen",
+      "Bedroom"
+    ],
+    "gold": "Bedroom",
+    "tag": "lookup"
+  },
+  {
+    "id": "green_where",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Where is the green cup?",
+    "paraphrase": "Where was the green cup placed?",
+    "choices": [
+      "Study",
+      "Kitchen"
+    ],
+    "gold": "Study",
+    "tag": "lookup"
+  },
+  {
+    "id": "key_where",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Where is the key?",
+    "paraphrase": "Which cup contains the key?",
+    "choices": [
+      "Inside the blue cup",
+      "Inside the red cup"
+    ],
+    "gold": "Inside the blue cup",
+    "tag": "lookup"
+  },
+  {
+    "id": "green_floor",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Which floor is the green cup on?",
+    "paraphrase": "What floor holds the green cup?",
+    "choices": [
+      "First floor",
+      "Second floor"
+    ],
+    "gold": "Second floor",
+    "tag": "multi-hop"
+  },
+  {
+    "id": "key_floor",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Which floor is the key on?",
+    "paraphrase": "On what floor would someone find the key?",
+    "choices": [
+      "First floor",
+      "Second floor"
+    ],
+    "gold": "First floor",
+    "tag": "multi-hop"
+  },
+  {
+    "id": "red_floor",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Is the red cup on the first floor?",
+    "paraphrase": "Is the red cup located on floor one?",
+    "choices": [
+      "Yes",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "depart_first",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "When does the first train depart?",
+    "paraphrase": "At what time does train one leave its starting station?",
+    "choices": [
+      "09:00",
+      "10:00"
+    ],
+    "gold": "09:00",
+    "tag": "lookup"
+  },
+  {
+    "id": "arrive_first",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "When does the first train arrive?",
+    "paraphrase": "At what time does train one reach Station B?",
+    "choices": [
+      "09:00",
+      "10:00"
+    ],
+    "gold": "10:00",
+    "tag": "lookup"
+  },
+  {
+    "id": "first_duration",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How long is the first train journey?",
+    "paraphrase": "What is the travel time from A to B?",
+    "choices": [
+      "One hour",
+      "Two hours"
+    ],
+    "gold": "One hour",
+    "tag": "time"
+  },
+  {
+    "id": "second_duration",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How long is the second train journey?",
+    "paraphrase": "What is the travel time from B to C?",
+    "choices": [
+      "Thirty minutes",
+      "Ninety minutes"
+    ],
+    "gold": "Thirty minutes",
+    "tag": "time"
+  },
+  {
+    "id": "transfer_wait",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How long between arrival at Station B and departure from Station B?",
+    "paraphrase": "How long must a traveler wait at Station B?",
+    "choices": [
+      "Ninety minutes",
+      "Thirty minutes"
+    ],
+    "gold": "Ninety minutes",
+    "tag": "time"
+  },
+  {
+    "id": "second_depart",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "When does the second train depart?",
+    "paraphrase": "At what time does train two leave B?",
+    "choices": [
+      "11:30",
+      "12:00"
+    ],
+    "gold": "11:30",
+    "tag": "lookup"
+  },
+  {
+    "id": "final_arrival",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "When does the second train arrive at Station C?",
+    "paraphrase": "At what time is Station C reached?",
+    "choices": [
+      "12:00",
+      "10:00"
+    ],
+    "gold": "12:00",
+    "tag": "lookup"
+  },
+  {
+    "id": "maya_before",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How many apples does Maya have immediately after Leo gives her two?",
+    "paraphrase": "How many apples does Maya hold right after Leo gives two?",
+    "choices": [
+      "Five",
+      "Four"
+    ],
+    "gold": "Five",
+    "tag": "arithmetic"
+  },
+  {
+    "id": "maya_after",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How many apples does Maya have after she gives one to Nina?",
+    "paraphrase": "After giving Nina one apple, how many remain with Maya?",
+    "choices": [
+      "Four",
+      "Six"
+    ],
+    "gold": "Four",
+    "tag": "arithmetic"
+  },
+  {
+    "id": "orange_count",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How many oranges does Leo have?",
+    "paraphrase": "How many oranges belong to Leo?",
+    "choices": [
+      "Four",
+      "Three"
+    ],
+    "gold": "Four",
+    "tag": "lookup"
+  },
+  {
+    "id": "balls_total",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "How many balls are in the box in total?",
+    "paraphrase": "What is the total number of balls in the box?",
+    "choices": [
+      "Seven",
+      "Five"
+    ],
+    "gold": "Seven",
+    "tag": "arithmetic"
+  },
+  {
+    "id": "ball_majority",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Which color of ball is more numerous?",
+    "paraphrase": "Which ball color occurs more often?",
+    "choices": [
+      "Black",
+      "Red"
+    ],
+    "gold": "Black",
+    "tag": "comparison"
+  },
+  {
+    "id": "pet_species",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "What species is Pip?",
+    "paraphrase": "What kind of animal is Pip, according to the context?",
+    "choices": [
+      "Cat",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "pet_color",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "What color is Pip?",
+    "paraphrase": "What shade is Pip described as?",
+    "choices": [
+      "Brown",
+      "Cannot determine"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown"
+  },
+  {
+    "id": "door",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Is the door open?",
+    "paraphrase": "Is the door currently open?",
+    "choices": [
+      "Yes",
+      "No"
+    ],
+    "gold": "No",
+    "tag": "lookup"
+  },
+  {
+    "id": "rain",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Is it raining outside?",
+    "paraphrase": "Is there rain outside?",
+    "choices": [
+      "Yes",
+      "No"
+    ],
+    "gold": "Yes",
+    "tag": "lookup"
+  },
+  {
+    "id": "country",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Which country contains the house?",
+    "paraphrase": "In what nation is the house located?",
+    "choices": [
+      "Japan",
+      "China"
+    ],
+    "gold": "Japan",
+    "tag": "lookup"
+  },
+  {
+    "id": "train_order",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Does the first train arrive before it departs?",
+    "paraphrase": "Is train one’s arrival earlier than its departure?",
+    "choices": [
+      "Yes",
+      "No"
+    ],
+    "gold": "No",
+    "tag": "time"
+  },
+  {
+    "id": "blue_red_same",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "Are the blue and red cups in the same room?",
+    "paraphrase": "Do both the blue cup and red cup occupy one room?",
+    "choices": [
+      "Yes",
+      "No"
+    ],
+    "gold": "No",
+    "tag": "comparison"
+  },
+  {
+    "id": "species_reverse",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "What species is Pip?",
+    "paraphrase": "Based only on the context, identify Pip’s species.",
+    "choices": [
+      "Cannot determine",
+      "Cat"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown-order"
+  },
+  {
+    "id": "pet_color_reverse",
+    "state": "There are three cups: the blue cup is in the kitchen, the red cup is in the bedroom, and the green cup is in the study. The key is inside the blue cup. The kitchen is on the first floor, and the study is on the second floor. A train departs Station A at 09:00 and arrives at Station B at 10:00. A second train departs Station B at 11:30 and arrives at Station C at 12:00. Maya has 3 apples; Leo gives her 2 more apples, and then Maya gives 1 apple to Nina. Leo has 4 oranges. A box contains 2 red balls and 5 black balls. A pet named Pip lives here, but its species and color are not stated. The door is closed. It is raining outside. The house is in Osaka, Japan.",
+    "prompt": "What color is Pip?",
+    "paraphrase": "Based only on the context, identify Pip’s color.",
+    "choices": [
+      "Cannot determine",
+      "Brown"
+    ],
+    "gold": "Cannot determine",
+    "tag": "unknown-order"
+  }
+]

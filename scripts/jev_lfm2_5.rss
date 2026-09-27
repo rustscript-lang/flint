@@ -20,6 +20,7 @@ struct Entry {
     label: string,
     probability: float,
     log_likelihood: float,
+    ranking_score: float,
 }
 struct Answer {
     id: string,
@@ -31,6 +32,7 @@ struct Answer {
 struct DecisionResponse {
     model: string,
     temperature: float,
+    scoring: string,
     results: [Answer],
 }
 
@@ -48,13 +50,18 @@ let request_arg: int = cli::required_option::<string>(
 let temperature_arg: int = cli::option::<float>(
     parser, 1.0, ["--temperature"], "Store", "Positive temperature; no calibration claim"
 );
+let scoring_arg: int = cli::option::<string>(
+    parser, "token-mean", ["--scoring"], "Store", "token-mean or total"
+);
 flint::cli::parse_args(parser);
 let weights_path: string = cli::get::<string>(weights_arg);
 let tokenizer_path: string = cli::get::<string>(tokenizer_arg);
 let request_text: string = cli::get::<string>(request_arg);
 let temperature: float = cli::get::<float>(temperature_arg);
+let scoring: string = cli::get::<string>(scoring_arg);
 let request: Request = json::decode::<Request>(request_text);
 assert(temperature > 0.0 && math::is_finite(temperature));
+assert(scoring == "total" || scoring == "token-mean");
 let question_count: int = request.questions.copy().length;
 assert(question_count > 0 && question_count <= 32);
 assert(request.state.copy().length <= 8192);
@@ -882,7 +889,7 @@ fn log_probability(probability: int) -> float {
     -(low + high) / 2.0
 }
 
-fn candidate_log_likelihood(prefix: string, label: string) -> float {
+fn candidate_log_likelihood(prefix: string, label: string) -> [float] {
     assert(label.length > 0 && label.length <= 256);
     let prefix_pair: int = flint::tokenizer::encode_padded(prefix.copy(), 513, 0, false);
     let prefix_len: int = token_count(prefix_pair, 513);
@@ -900,12 +907,14 @@ fn candidate_log_likelihood(prefix: string, label: string) -> float {
     let mut logits: int = model(prefix_ids, 0, false);
     flint::runtime::compact2(logits, full_ids);
     let mut score: float = 0.0;
+    let mut count: float = 0.0;
     let mut j: int = prefix_len;
     while j < full_len {
         let token: int = token_id_at(full_ids, j);
         let probabilities: int = flint::tensor::softmax(logits, -1);
         let chosen: int = flint::tensor::select(probabilities, -1, token);
         score = score + log_probability(chosen);
+        count = count + 1.0;
         if j + 1 < full_len {
             let step_ids: int = flint::tokenizer::single_token(token);
             logits = model(step_ids, j, true);
@@ -913,7 +922,7 @@ fn candidate_log_likelihood(prefix: string, label: string) -> float {
         }
         j = j + 1;
     }
-    score
+    [score, count]
 }
 
 fn question_labels(question: Question) -> [string] {
@@ -954,12 +963,20 @@ fn decision(question: Question, state: string) -> Answer {
     }
     let prefix: string = chat_prefix(user_prompt);
     let mut scores: [float] = [];
+    let mut counts: [float] = [];
     i = 0;
     while i < labels.length {
-        scores[scores.length] = candidate_log_likelihood(prefix.copy(), labels.copy()[i]);
+        let candidate: [float] = candidate_log_likelihood(prefix.copy(), labels.copy()[i]);
+        scores[scores.length] = candidate.copy()[0];
+        counts[counts.length] = candidate.copy()[1];
         i = i + 1;
     }
-    let probabilities: [float] = decisions::normalize(scores.copy(), temperature);
+    let ranking_scores: [float] = if scoring == "token-mean" => {
+        decisions::per_token(scores.copy(), counts.copy())
+    } else => {
+        scores.copy()
+    };
+    let probabilities: [float] = decisions::normalize(ranking_scores.copy(), temperature);
     let best: int = decisions::best_index(probabilities.copy());
     let mut distribution: [Entry] = [];
     i = 0;
@@ -968,6 +985,7 @@ fn decision(question: Question, state: string) -> Answer {
             label: labels.copy()[i],
             probability: probabilities.copy()[i],
             log_likelihood: scores.copy()[i],
+            ranking_score: ranking_scores.copy()[i],
         };
         i = i + 1;
     }
@@ -989,6 +1007,7 @@ while index < question_count {
 let response: DecisionResponse = {
     model: "LiquidAI/LFM2.5-230M",
     temperature: temperature,
+    scoring: scoring,
     results: results,
 };
 flint::runtime::set_text_output(json::encode(response));
