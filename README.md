@@ -13,3 +13,4 @@ cargo install rs-flint
 - [Flint reference](https://rustscript.org/docs/reference/flint/)
 - [Runtime guides](https://rustscript.org/docs/learn/runtimes/#flint)
 - [Runtime implementation guide](https://rustscript.org/docs/contribute/runtimes/#flint)
+- [Pure-RSS typed decisions (LFM2.5-230M)](docs/pure-rss-decisions.md)

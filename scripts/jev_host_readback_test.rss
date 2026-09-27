@@ -1,0 +1,56 @@
+use stdlib::rss::cli as cli;
+use math;
+use flint;
+use json;
+
+let parser: int = flint::cli::argument_parser();
+let tokenizer_arg: int = cli::required_option::<string>(
+    parser, "", ["--tokenizer"], "Store", "Tokenizer path"
+);
+flint::cli::parse_args(parser);
+flint::tokenizer::load(cli::get::<string>(tokenizer_arg));
+
+// The original Flint host has no scalar readback: use an argmax comparison.
+fn scalar_at(ids: int, index: int, vocabulary: int) -> int {
+    let one: int = flint::tensor::select(ids, 1, index);
+    let positions: int = flint::tensor::arange(vocabulary);
+    let delta: int = flint::tensor::sub(positions, one);
+    let distance: int = flint::tensor::mul(delta, delta);
+    flint::tensor::argmax_int(flint::tensor::neg(distance), 0)
+}
+
+fn negative_log_probability(probability: int) -> float {
+    let one: int = flint::tensor::unsqueeze(probability, 0);
+    let mut low: float = 0.0;
+    let mut high: float = 80.0;
+    let mut i: int = 0;
+    while i < 24 {
+        let mid: float = (low + high) / 2.0;
+        let threshold: int = flint::tensor::add_scalar(
+            flint::tensor::zeros_like(one), math::exp(-mid)
+        );
+        let options: int = flint::tensor::cat2(one, threshold, 0);
+        if flint::tensor::argmax_int(options, 0) == 0 {
+            high = mid;
+        } else {
+            low = mid;
+        }
+        i = i + 1;
+    }
+    -(low + high) / 2.0
+}
+
+let encoded: int = flint::tokenizer::encode_padded("hello world", 16, 0, false);
+let ids: int = flint::pair::local(encoded);
+let mask: int = flint::pair::global(encoded);
+let positions: int = flint::tensor::arange(16);
+let weighted: int = flint::tensor::mul(mask, positions);
+let length: int = flint::tensor::argmax_int(weighted, 1) + 1;
+assert(length > 0 && length < 16);
+let token: int = scalar_at(ids, 0, 65536);
+let logits: int = flint::tensor::arange(3);
+let probabilities: int = flint::tensor::softmax(logits, 0);
+let chosen: int = flint::tensor::select(probabilities, 0, 2);
+let log_probability: float = negative_log_probability(chosen);
+assert(log_probability < -0.4 && log_probability > -0.42);
+flint::runtime::set_text_output(json::encode({ token: token, length: length, log_probability: log_probability }));
