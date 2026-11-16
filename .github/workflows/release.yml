@@ -130,6 +130,39 @@ jobs:
                   for candidate in candidates:
                       if (candidate / torch_lib_name).is_file():
                           torch_lib_dirs.append(candidate)
+          if not torch_lib_dirs:
+              # Some runner images provide LibTorch system-wide; tch still
+              # links it but torch-sys has no downloaded build directory.
+              if os.environ["RUNNER_OS"] == "Linux":
+                  probe = subprocess.run(
+                      ["ldd", str(binary)], text=True, capture_output=True
+                  )
+                  for line in probe.stdout.splitlines():
+                      if "libtorch.so" in line and "=>" in line:
+                          candidate = pathlib.Path(
+                              line.split("=>", 1)[1].strip().split(" (", 1)[0]
+                          ).parent
+                          if (candidate / torch_lib_name).is_file():
+                              torch_lib_dirs.append(candidate)
+              elif os.environ["RUNNER_OS"] == "macOS":
+                  probe = subprocess.run(
+                      ["otool", "-L", str(binary)], text=True, capture_output=True
+                  )
+                  for line in probe.stdout.splitlines():
+                      if "libtorch.dylib" in line:
+                          candidate = pathlib.Path(
+                              line.strip().split(" (", 1)[0]
+                          ).parent
+                          if (candidate / torch_lib_name).is_file():
+                              torch_lib_dirs.append(candidate)
+              else:
+                  probe = subprocess.run(
+                      ["where", "torch.dll"], text=True, capture_output=True
+                  )
+                  for line in probe.stdout.splitlines():
+                      candidate = pathlib.Path(line.strip()).parent
+                      if (candidate / torch_lib_name).is_file():
+                          torch_lib_dirs.append(candidate)
           torch_lib_dirs = sorted(set(torch_lib_dirs))
           if len(torch_lib_dirs) != 1:
               checked = ", ".join(str(path) for path in search_roots)
