@@ -37,7 +37,8 @@ jobs:
           - os: windows-2022
             platform: windows-x86_64
             exe_suffix: ".exe"
-          - os: macos-15
+          # Use the public arm64 runner label; macos-15 remained unassigned in the failed run.
+          - os: macos-latest
             platform: macos-arm64
             exe_suffix: ""
 
@@ -103,73 +104,28 @@ jobs:
               raise FileNotFoundError(f"missing built runner binary: {binary}")
           shutil.copy2(binary, package_dir / binary.name)
 
-          # tch-rs downloads LibTorch into torch-sys's build output. Locate it
-          # under the package target as well as the workspace target fallback.
-          torch_lib_name = (
-              "torch.dll"
-              if os.environ["RUNNER_OS"] == "Windows"
-              else "libtorch.dylib"
-              if os.environ["RUNNER_OS"] == "macOS"
-              else "libtorch.so"
-          )
-          search_roots = [
-              release_dir / "build",
-              root / "target" / "release" / "build",
-              root / "target" / "debug" / "build",
-              pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd()))
-              / "target" / "release" / "build",
-              pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd()))
-              / "target" / "debug" / "build",
-          ]
-          torch_lib_dirs = []
-          for build_root in search_roots:
-              if not build_root.is_dir():
-                  continue
-              for torch_root in build_root.glob("torch-sys-*/out/libtorch"):
-                  candidates = [torch_root / "lib", *torch_root.glob("*/lib")]
-                  for candidate in candidates:
+          # torch-sys emits its actual linked library directory for downloaded,
+          # system, and Python-provided LibTorch installations alike.
+          torch_lib_name = {
+              "Windows": "torch.dll",
+              "macOS": "libtorch.dylib",
+              "Linux": "libtorch.so",
+          }[os.environ["RUNNER_OS"]]
+          build_root = release_dir / "build"
+          torch_lib_dirs = set()
+          for output in build_root.glob("torch-sys-*/output"):
+              for line in output.read_text(encoding="utf-8").splitlines():
+                  prefix = "cargo:rustc-link-search=native="
+                  if line.startswith(prefix):
+                      candidate = pathlib.Path(line[len(prefix):])
                       if (candidate / torch_lib_name).is_file():
-                          torch_lib_dirs.append(candidate)
-          if not torch_lib_dirs:
-              # Some runner images provide LibTorch system-wide; tch still
-              # links it but torch-sys has no downloaded build directory.
-              if os.environ["RUNNER_OS"] == "Linux":
-                  probe = subprocess.run(
-                      ["ldd", str(binary)], text=True, capture_output=True
-                  )
-                  for line in probe.stdout.splitlines():
-                      if "libtorch.so" in line and "=>" in line:
-                          candidate = pathlib.Path(
-                              line.split("=>", 1)[1].strip().split(" (", 1)[0]
-                          ).parent
-                          if (candidate / torch_lib_name).is_file():
-                              torch_lib_dirs.append(candidate)
-              elif os.environ["RUNNER_OS"] == "macOS":
-                  probe = subprocess.run(
-                      ["otool", "-L", str(binary)], text=True, capture_output=True
-                  )
-                  for line in probe.stdout.splitlines():
-                      if "libtorch.dylib" in line:
-                          candidate = pathlib.Path(
-                              line.strip().split(" (", 1)[0]
-                          ).parent
-                          if (candidate / torch_lib_name).is_file():
-                              torch_lib_dirs.append(candidate)
-              else:
-                  probe = subprocess.run(
-                      ["where", "torch.dll"], text=True, capture_output=True
-                  )
-                  for line in probe.stdout.splitlines():
-                      candidate = pathlib.Path(line.strip()).parent
-                      if (candidate / torch_lib_name).is_file():
-                          torch_lib_dirs.append(candidate)
-          torch_lib_dirs = sorted(set(torch_lib_dirs))
+                          torch_lib_dirs.add(candidate)
           if len(torch_lib_dirs) != 1:
-              checked = ", ".join(str(path) for path in search_roots)
               raise RuntimeError(
-                  f"expected one tch-rs LibTorch directory, found {torch_lib_dirs}; checked {checked}"
+                  f"expected one tch-rs LibTorch directory, found {sorted(torch_lib_dirs)}; "
+                  f"checked torch-sys build output under {build_root}"
               )
-          torch_lib = torch_lib_dirs[0]
+          torch_lib = torch_lib_dirs.pop()
           torch_pattern = {
               "Windows": "*.dll",
               "macOS": "*.dylib",
