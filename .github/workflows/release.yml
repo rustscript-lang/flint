@@ -37,7 +37,7 @@ jobs:
           - os: windows-2022
             platform: windows-x86_64
             exe_suffix: ".exe"
-          - os: macos-14
+          - os: macos-15
             platform: macos-arm64
             exe_suffix: ""
 
