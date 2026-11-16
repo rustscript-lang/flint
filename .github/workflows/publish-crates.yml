@@ -112,18 +112,21 @@ jobs:
                       dependency = package_match.group(1) if package_match else key
                       dependency_version = dependency_versions.get(dependency)
                       if dependency_version:
-                          if re.search(r'version\s*=\s*"[^"]*"', body):
-                              body = re.sub(
-                                  r'version\s*=\s*"[^"]*"',
-                                  f'version = "{dependency_version}"',
-                                  body,
+                          attrs = []
+                          if package_match and package_match.group(1) != key:
+                              attrs.append(f'package = "{package_match.group(1)}"')
+                          attrs.append(f'version = "{dependency_version}"')
+                          default_features = re.search(
+                              r'default-features\s*=\s*(true|false)', body
+                          )
+                          if default_features:
+                              attrs.append(
+                                  f"default-features = {default_features.group(1)}"
                               )
-                          else:
-                              body = body.rstrip()
-                              if body and not body.endswith(","):
-                                  body += ","
-                              body += f' version = "{dependency_version}"'
-                          line = prefix + body + suffix
+                          features = re.search(r'features\s*=\s*\[[^\]]*\]', body)
+                          if features:
+                              attrs.append(features.group(0))
+                          line = prefix + " " + ", ".join(attrs) + " " + suffix
                   output.append(line)
               manifest.write_text("\n".join(output) + "\n", encoding="utf-8")
           PY

@@ -84,7 +84,7 @@ jobs:
           import subprocess
           import zipfile
 
-          root = pathlib.Path("flint")
+          root = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd())) / "flint"
           cargo_target_dir = pathlib.Path(os.environ.get("CARGO_TARGET_DIR", "target"))
           if not cargo_target_dir.is_absolute():
               cargo_target_dir = root / cargo_target_dir
@@ -103,15 +103,39 @@ jobs:
               raise FileNotFoundError(f"missing built runner binary: {binary}")
           shutil.copy2(binary, package_dir / binary.name)
 
-          # tch-rs downloads LibTorch into torch-sys's build output.
-          torch_lib_dirs = [
-              path for path in (release_dir / "build").glob("torch-sys-*/out/libtorch/*/lib")
-              if (path / ("torch.dll" if os.environ["RUNNER_OS"] == "Windows" else
-                          "libtorch.dylib" if os.environ["RUNNER_OS"] == "macOS" else
-                          "libtorch.so")).is_file()
+          # tch-rs downloads LibTorch into torch-sys's build output. Locate it
+          # under the package target as well as the workspace target fallback.
+          torch_lib_name = (
+              "torch.dll"
+              if os.environ["RUNNER_OS"] == "Windows"
+              else "libtorch.dylib"
+              if os.environ["RUNNER_OS"] == "macOS"
+              else "libtorch.so"
+          )
+          search_roots = [
+              release_dir / "build",
+              root / "target" / "release" / "build",
+              root / "target" / "debug" / "build",
+              pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd()))
+              / "target" / "release" / "build",
+              pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd()))
+              / "target" / "debug" / "build",
           ]
+          torch_lib_dirs = []
+          for build_root in search_roots:
+              if not build_root.is_dir():
+                  continue
+              for torch_root in build_root.glob("torch-sys-*/out/libtorch"):
+                  candidates = [torch_root / "lib", *torch_root.glob("*/lib")]
+                  for candidate in candidates:
+                      if (candidate / torch_lib_name).is_file():
+                          torch_lib_dirs.append(candidate)
+          torch_lib_dirs = sorted(set(torch_lib_dirs))
           if len(torch_lib_dirs) != 1:
-              raise RuntimeError(f"expected one tch-rs LibTorch directory, found {torch_lib_dirs}")
+              checked = ", ".join(str(path) for path in search_roots)
+              raise RuntimeError(
+                  f"expected one tch-rs LibTorch directory, found {torch_lib_dirs}; checked {checked}"
+              )
           torch_lib = torch_lib_dirs[0]
           torch_pattern = {
               "Windows": "*.dll",
