@@ -25,9 +25,15 @@ koharu-llama = { git = "https://github.com/mayocream/koharu.git", branch = "refa
 libloading = "0.8"
 pd-host-function = { git = "https://github.com/rustscript-lang/rustscript", rev = "2f433edab3f1907e8cb060e901357d7e2af016ce" }
 tch = { version = "0.24", features = ["download-libtorch"] }
-tokenizers = "0.22"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 vm = { package = "pd-vm", git = "https://github.com/rustscript-lang/rustscript", rev = "2f433edab3f1907e8cb060e901357d7e2af016ce", default-features = false, features = ["runtime", "cranelift-jit"] }
+
+[target.'cfg(windows)'.dependencies]
+# esaxx_fast compiles esaxx-rs with /MT, conflicting with MSVC's /MD runtime.
+tokenizers = { version = "0.22", default-features = false, features = ["onig", "progressbar"] }
+
+[target.'cfg(not(windows))'.dependencies]
+tokenizers = "0.22"
 
 [dev-dependencies]
 tempfile = "3"
