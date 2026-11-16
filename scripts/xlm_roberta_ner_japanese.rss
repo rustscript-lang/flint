@@ -40,11 +40,11 @@ let labels_arg: int = cli::option::<string>(
 );
 flint::cli::parse_args(parser);
 
-let weights_path = cli::get::<string>(weights_arg);
-let tokenizer_path = cli::get::<string>(tokenizer_arg);
-let text = cli::get::<string>(text_arg);
-let seq_len = cli::get::<int>(seq_len_arg);
-let label_names = cli::get::<string>(labels_arg);
+let weights_path = cli::get_string(weights_arg);
+let tokenizer_path = cli::get_string(tokenizer_arg);
+let text = cli::get_string(text_arg);
+let seq_len = cli::get_int(seq_len_arg);
+let label_names = cli::get_string(labels_arg);
 
 flint::weights::load(weights_path);
 flint::tokenizer::load(tokenizer_path);

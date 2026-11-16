@@ -1,0 +1,5 @@
+use stdlib::rss::iter as iter;
+use flint;
+
+flint::runtime::set_text_output("iter Unit compiled");
+"iter Unit compiled";

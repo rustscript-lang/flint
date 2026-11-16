@@ -62,3 +62,19 @@ fn diffusion_namespace_is_bound_at_runtime() {
     let output = ScriptRunner::new().run_text(program, Vec::new()).unwrap();
     assert_eq!(output.text, "euler:simple");
 }
+
+#[test]
+fn parse_helpers_return_typed_options() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parse_option.rss");
+    let program = Arc::new(compile_script_file(path).unwrap().program);
+    let output = ScriptRunner::new().run_text(program, Vec::new()).unwrap();
+    assert_eq!(output.text, "parse Option passed");
+}
+
+#[test]
+fn lru_cache_uses_options_for_absent_entries() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/lru_option.rss");
+    let program = Arc::new(compile_script_file(path).unwrap().program);
+    let output = ScriptRunner::new().run_text(program, Vec::new()).unwrap();
+    assert_eq!(output.text, "lru Option passed");
+}

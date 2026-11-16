@@ -80,7 +80,6 @@ jobs:
               "koharu-diffusion": os.environ["KOHARU_VERSION"],
               "koharu-llama": os.environ["KOHARU_VERSION"],
               "koharu-runtime": os.environ["KOHARU_VERSION"],
-              "koharu-torch": os.environ["KOHARU_VERSION"],
               "pd-host-function": os.environ["PD_VM_VERSION"],
               "pd-vm": os.environ["PD_VM_VERSION"],
           }

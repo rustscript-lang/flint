@@ -677,9 +677,7 @@ pub(super) fn llama_sampler_sample_impl(
 pub(super) fn llama_sampler_accept_impl(sampler_handle: i64, token: i64) -> VmResult<bool> {
     let mut samplers = SAMPLERS.lock().map_err(|_| registry_error("sampler"))?;
     let sampler = ready_sampler(get_mut(&mut samplers, sampler_handle, "sampler")?)?;
-    sampler
-        .try_accept(LlamaToken::new(checked_i32(token, "token")?))
-        .map_err(llama_host_error)?;
+    sampler.accept(LlamaToken::new(checked_i32(token, "token")?));
     Ok(true)
 }
 
@@ -780,18 +778,7 @@ fn ensure_backend(handle: i64) -> VmResult<()> {
 fn select_package(kind: &str) -> Result<LlamaCpp> {
     let kind = kind.to_ascii_lowercase();
     if kind.is_empty() || kind == "auto" || kind.starts_with("cuda") {
-        return Ok(LlamaCpp::for_current_target());
-    }
-    if kind == "cpu" {
-        if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            return Ok(LlamaCpp::WindowsX64Cpu);
-        }
-        if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            return Ok(LlamaCpp::LinuxX64Cpu);
-        }
-        if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-            return Ok(LlamaCpp::LinuxArm64Cpu);
-        }
+        return LlamaCpp::for_current_target();
     }
     if kind.starts_with("vulkan") {
         if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
@@ -799,9 +786,6 @@ fn select_package(kind: &str) -> Result<LlamaCpp> {
         }
         if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             return Ok(LlamaCpp::LinuxX64Vulkan);
-        }
-        if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-            return Ok(LlamaCpp::LinuxArm64Vulkan);
         }
     }
     bail!("unsupported llama.cpp backend '{kind}' for this target")

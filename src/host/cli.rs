@@ -461,8 +461,38 @@ fn reference_value(reference: i64) -> VmResult<Value> {
     })
 }
 
-/// Reads a parsed typed reference.
-#[pd_host_function(name = "flint::cli::get")]
-pub(super) fn cli_get_impl(reference: i64) -> VmResult<Value> {
-    reference_value(reference)
+/// Reads a parsed string reference.
+#[pd_host_function(name = "flint::cli::get_string")]
+pub(super) fn cli_get_string_impl(reference: i64) -> VmResult<String> {
+    match reference_value(reference)? {
+        Value::String(value) => Ok(value.as_str().to_owned()),
+        _ => Err(host_error("CLI reference is not a string")),
+    }
+}
+
+/// Reads a parsed integer reference.
+#[pd_host_function(name = "flint::cli::get_int")]
+pub(super) fn cli_get_int_impl(reference: i64) -> VmResult<i64> {
+    match reference_value(reference)? {
+        Value::Int(value) => Ok(value),
+        _ => Err(host_error("CLI reference is not an int")),
+    }
+}
+
+/// Reads a parsed floating-point reference.
+#[pd_host_function(name = "flint::cli::get_float")]
+pub(super) fn cli_get_float_impl(reference: i64) -> VmResult<f64> {
+    match reference_value(reference)? {
+        Value::Float(value) => Ok(value),
+        _ => Err(host_error("CLI reference is not a float")),
+    }
+}
+
+/// Reads a parsed Boolean reference.
+#[pd_host_function(name = "flint::cli::get_bool")]
+pub(super) fn cli_get_bool_impl(reference: i64) -> VmResult<bool> {
+    match reference_value(reference)? {
+        Value::Bool(value) => Ok(value),
+        _ => Err(host_error("CLI reference is not a bool")),
+    }
 }

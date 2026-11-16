@@ -25,6 +25,18 @@ pub fn required_option<T>(
     reference
 }
 
-pub fn get<T>(reference: int) -> T {
-    flint::cli::get(reference)
+pub fn get_string(reference: int) -> string {
+    flint::cli::get_string(reference)
+}
+
+pub fn get_int(reference: int) -> int {
+    flint::cli::get_int(reference)
+}
+
+pub fn get_float(reference: int) -> float {
+    flint::cli::get_float(reference)
+}
+
+pub fn get_bool(reference: int) -> bool {
+    flint::cli::get_bool(reference)
 }

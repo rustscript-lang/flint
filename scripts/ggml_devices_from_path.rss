@@ -11,7 +11,7 @@ let path_arg: int = cli::required_option::<string>(
     "Native library path"
 );
 flint::cli::parse_args(parser);
-let path = cli::get::<string>(path_arg);
+let path = cli::get_string(path_arg);
 let devices: string = flint::ggml::list_devices(path);
 flint::runtime::set_text_output(devices);
 devices;

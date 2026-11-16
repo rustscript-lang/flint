@@ -21,7 +21,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_TARGET_DIR: target
-  LIBTORCH_VERSION: "2.12.1"
 
 jobs:
   build-runner:
@@ -34,16 +33,13 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x86_64
             exe_suffix: ""
-            libtorch_device: cpu
           # CUDA 13.1 integrates with Visual Studio 2022, available on this image.
           - os: windows-2022
             platform: windows-x86_64
             exe_suffix: ".exe"
-            libtorch_device: cu130
           - os: macos-14
             platform: macos-arm64
             exe_suffix: ""
-            libtorch_device: cpu
 
     steps:
       - name: Checkout Flint
@@ -60,112 +56,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Patch Koharu release dependencies
-        working-directory: flint
-        run: python .github/scripts/patch-koharu-diffusion.py
-
-      - name: Prefetch platform LibTorch
-        working-directory: flint
-        shell: python
-        env:
-          RUNNER_OS: ${{ runner.os }}
-        run: |
-          import os
-          import pathlib
-          import shutil
-          import tempfile
-          import urllib.request
-          import zipfile
-
-          version = os.environ["LIBTORCH_VERSION"]
-          runner_os = os.environ["RUNNER_OS"]
-          if runner_os == "Linux":
-              device = "cpu"
-              archive_name = f"libtorch-shared-with-deps-{version}%2Bcpu.zip"
-              required = (
-                  "libgomp.so.1",
-                  "libc10.so",
-                  "libshm.so",
-                  "libtorch_global_deps.so",
-                  "libtorch_cpu.so",
-                  "libtorch.so",
-              )
-          elif runner_os == "macOS":
-              # Apple Silicon LibTorch includes the MPS backend implemented on Metal.
-              device = "cpu"
-              archive_name = f"libtorch-macos-arm64-{version}.zip"
-              required = (
-                  "libomp.dylib",
-                  "libc10.dylib",
-                  "libshm.dylib",
-                  "libtorch_global_deps.dylib",
-                  "libtorch_cpu.dylib",
-                  "libtorch.dylib",
-              )
-          elif runner_os == "Windows":
-              # GitHub's Windows runner has no CUDA driver. Prefetch CUDA LibTorch
-              # explicitly so the released archive can use CUDA on a user's machine.
-              device = "cu130"
-              archive_name = f"libtorch-win-shared-with-deps-{version}%2B{device}.zip"
-              required = (
-                  "libiomp5md.dll",
-                  "libiompstubs5md.dll",
-                  "zlibwapi.dll",
-                  "uv.dll",
-                  "c10.dll",
-                  "c10_cuda.dll",
-                  "caffe2_nvrtc.dll",
-                  "torch_global_deps.dll",
-                  "torch_cpu.dll",
-                  "torch_cuda.dll",
-                  "shm.dll",
-                  "torch.dll",
-              )
-          else:
-              raise RuntimeError(f"unsupported runner OS: {runner_os}")
-          url = f"https://download.pytorch.org/libtorch/{device}/{archive_name}"
-          target_dir = pathlib.Path(os.environ.get("CARGO_TARGET_DIR", "target"))
-          package_dir = target_dir / "store" / "libtorch" / version / device
-          lib_dir = package_dir / "libtorch" / "lib"
-
-          if all((lib_dir / name).is_file() for name in required):
-              raise SystemExit(0)
-
-          package_dir.parent.mkdir(parents=True, exist_ok=True)
-          staging_dir = package_dir.with_name(f"{package_dir.name}.tmp")
-          shutil.rmtree(staging_dir, ignore_errors=True)
-
-          archive_path = None
-          try:
-              with tempfile.NamedTemporaryFile(
-                  dir=package_dir.parent, suffix=".zip", delete=False
-              ) as archive:
-                  archive_path = pathlib.Path(archive.name)
-                  request = urllib.request.Request(
-                      url, headers={"User-Agent": "flint-release-ci"}
-                  )
-                  with urllib.request.urlopen(request, timeout=300) as response:
-                      shutil.copyfileobj(response, archive, length=1024 * 1024)
-
-              with zipfile.ZipFile(archive_path) as zip_file:
-                  damaged = zip_file.testzip()
-                  if damaged is not None:
-                      raise RuntimeError(f"damaged LibTorch member: {damaged}")
-                  zip_file.extractall(staging_dir)
-
-              if not all(
-                  (staging_dir / "libtorch" / "lib" / name).is_file()
-                  for name in required
-              ):
-                  raise RuntimeError("LibTorch archive is missing required libraries")
-
-              shutil.rmtree(package_dir, ignore_errors=True)
-              staging_dir.replace(package_dir)
-          finally:
-              if archive_path is not None:
-                  archive_path.unlink(missing_ok=True)
-              shutil.rmtree(staging_dir, ignore_errors=True)
-
       - name: Install CUDA Toolkit
         if: runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@3d45d157f327c09c04b50ee6ccdea2d9d017ec76
@@ -174,9 +64,11 @@ jobs:
 
       - name: Build release runner
         working-directory: flint
-        env:
-          FLINT_LIBTORCH_DEVICE: ${{ matrix.libtorch_device }}
         run: cargo build --release --locked --bin flint
+
+      - name: Install portable Linux loader tool
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
 
       - name: Package runner
         id: package
@@ -185,11 +77,11 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           EXE_SUFFIX: ${{ matrix.exe_suffix }}
           RUNNER_OS: ${{ runner.os }}
-          LIBTORCH_VERSION: ${{ env.LIBTORCH_VERSION }}
         run: |
           import os
           import pathlib
           import shutil
+          import subprocess
           import zipfile
 
           root = pathlib.Path("flint")
@@ -211,6 +103,30 @@ jobs:
               raise FileNotFoundError(f"missing built runner binary: {binary}")
           shutil.copy2(binary, package_dir / binary.name)
 
+          # tch-rs downloads LibTorch into torch-sys's build output.
+          torch_lib_dirs = [
+              path for path in (release_dir / "build").glob("torch-sys-*/out/libtorch/*/lib")
+              if (path / ("torch.dll" if os.environ["RUNNER_OS"] == "Windows" else
+                          "libtorch.dylib" if os.environ["RUNNER_OS"] == "macOS" else
+                          "libtorch.so")).is_file()
+          ]
+          if len(torch_lib_dirs) != 1:
+              raise RuntimeError(f"expected one tch-rs LibTorch directory, found {torch_lib_dirs}")
+          torch_lib = torch_lib_dirs[0]
+          torch_pattern = {
+              "Windows": "*.dll",
+              "macOS": "*.dylib",
+              "Linux": "*.so*",
+          }[os.environ["RUNNER_OS"]]
+          for source in torch_lib.glob(torch_pattern):
+              if source.is_file():
+                  shutil.copy2(source, package_dir / source.name)
+
+          if os.environ["RUNNER_OS"] == "Linux":
+              subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", str(package_dir / binary.name)], check=True)
+          elif os.environ["RUNNER_OS"] == "macOS":
+              subprocess.run(["install_name_tool", "-add_rpath", "@executable_path", str(package_dir / binary.name)], check=True)
+
           native_library_patterns = {
               "Windows": "koharu*.dll",
               "macOS": "libkoharu*.dylib",
@@ -227,17 +143,11 @@ jobs:
 
           platform = os.environ["PLATFORM"]
           if platform == "windows-x86_64":
-              required = (
-                  "flint.exe",
-                  "koharu-torch.dll",
-              )
+              required = ("flint.exe", "torch.dll", "torch_cpu.dll", "c10.dll")
           elif platform == "macos-arm64":
-              required = (
-                  "flint",
-                  "libkoharu-torch.dylib",
-              )
+              required = ("flint", "libtorch.dylib", "libtorch_cpu.dylib", "libc10.dylib")
           else:
-              required = ("flint", "libkoharu-torch.so")
+              required = ("flint", "libtorch.so", "libtorch_cpu.so", "libc10.so")
           missing = [name for name in required if not (package_dir / name).is_file()]
           if missing:
               raise RuntimeError(f"release package is missing: {', '.join(missing)}")
