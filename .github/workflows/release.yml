@@ -21,6 +21,10 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_TARGET_DIR: target
+  # LibTorch version prefetched for every platform. This MUST match TORCH_VERSION in
+  # torch-sys (tch 0.24 -> torch-sys 0.24 -> 2.11.0): torch-sys compares it against
+  # libtorch/build-version and aborts the build on a mismatch. Bump both together.
+  LIBTORCH_VERSION: "2.11.0"
 
 jobs:
   build-runner:
@@ -33,14 +37,19 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x86_64
             exe_suffix: ""
+            libtorch_device: cpu
           # CUDA 13.1 integrates with Visual Studio 2022, available on this image.
+          # The runner has no GPU: prefetch CUDA LibTorch so end users get a CUDA build.
           - os: windows-2022
             platform: windows-x86_64
             exe_suffix: ".exe"
+            libtorch_device: cu130
           # Use the public arm64 runner label; macos-15 remained unassigned in the failed run.
+          # Apple silicon has no pre-built LibTorch on PyPI, so it must be prefetched too.
           - os: macos-latest
             platform: macos-arm64
             exe_suffix: ""
+            libtorch_device: cpu
 
     steps:
       - name: Checkout Flint
@@ -56,6 +65,167 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      # tch/torch-sys only auto-downloads LibTorch for Linux and Windows x86_64
+      # (and it lands inside the torch-sys OUT_DIR, where the packaging step cannot
+      # find it). Prefetch a stable, shared location for all three platforms and
+      # point torch-sys at it through LIBTORCH.
+      - name: Prefetch LibTorch
+        working-directory: flint
+        shell: python
+        env:
+          RUNNER_OS: ${{ runner.os }}
+          LIBTORCH_DEVICE: ${{ matrix.libtorch_device }}
+          LIBTORCH_VERSION: ${{ env.LIBTORCH_VERSION }}
+        run: |
+          import os
+          import pathlib
+          import shutil
+          import tempfile
+          import time
+          import urllib.request
+          import zipfile
+
+          version = os.environ["LIBTORCH_VERSION"]
+          device = os.environ["LIBTORCH_DEVICE"]
+          runner_os = os.environ["RUNNER_OS"]
+
+          if runner_os == "Linux":
+              url = (
+                  "https://download.pytorch.org/libtorch/"
+                  f"{device}/libtorch-shared-with-deps-{version}%2B{device}.zip"
+              )
+              required = (
+                  "libc10.so",
+                  "libtorch.so",
+                  "libtorch_cpu.so",
+                  "libtorch_global_deps.so",
+                  "libshm.so",
+              )
+          elif runner_os == "macOS":
+              # Apple Silicon ships a single cpu archive with the Metal/MPS backend.
+              url = (
+                  "https://download.pytorch.org/libtorch/cpu/"
+                  f"libtorch-macos-arm64-{version}.zip"
+              )
+              required = (
+                  "libc10.dylib",
+                  "libtorch.dylib",
+                  "libtorch_cpu.dylib",
+                  "libtorch_global_deps.dylib",
+                  "libomp.dylib",
+                  "libshm.dylib",
+              )
+          elif runner_os == "Windows":
+              url = (
+                  "https://download.pytorch.org/libtorch/"
+                  f"{device}/libtorch-win-shared-with-deps-{version}%2B{device}.zip"
+              )
+              required = (
+                  "c10.dll",
+                  "c10_cuda.dll",
+                  "torch.dll",
+                  "torch_cpu.dll",
+                  "torch_cuda.dll",
+                  "torch_global_deps.dll",
+                  "libiomp5md.dll",
+                  "uv.dll",
+                  "zlibwapi.dll",
+              )
+          else:
+              raise RuntimeError(f"unsupported runner OS: {runner_os}")
+
+          target_dir = pathlib.Path(os.environ.get("CARGO_TARGET_DIR", "target")).resolve()
+          package_dir = target_dir / "store" / "libtorch" / version / device
+          libtorch_dir = package_dir / "libtorch"
+          lib_dir = libtorch_dir / "lib"
+
+          def verify(root):
+              missing = [name for name in required if not (root / "lib" / name).is_file()]
+              if missing:
+                  return f"missing libraries: {', '.join(missing)}"
+              version_file = root / "build-version"
+              if not version_file.is_file():
+                  return "missing build-version marker"
+              found = version_file.read_text(encoding="utf-8").strip().split("+")[0]
+              if found != version:
+                  return f"build-version says {found}, expected {version}"
+              return None
+
+          problem = verify(libtorch_dir) if libtorch_dir.is_dir() else "not extracted yet"
+          if problem is None:
+              print(f"reusing prefetched LibTorch {version}/{device} at {libtorch_dir}")
+          else:
+              print(f"prefetching LibTorch {version}/{device} from {url} ({problem})")
+              package_dir.parent.mkdir(parents=True, exist_ok=True)
+              staging_dir = package_dir.with_name(f"{package_dir.name}.tmp")
+              shutil.rmtree(staging_dir, ignore_errors=True)
+
+              archive_path = None
+              try:
+                  with tempfile.NamedTemporaryFile(
+                      dir=package_dir.parent, suffix=".zip", delete=False
+                  ) as archive:
+                      archive_path = pathlib.Path(archive.name)
+                      for attempt in range(4):
+                          try:
+                              request = urllib.request.Request(
+                                  url, headers={"User-Agent": "flint-release-ci"}
+                              )
+                              with urllib.request.urlopen(request, timeout=600) as response:
+                                  shutil.copyfileobj(response, archive, length=4 * 1024 * 1024)
+                              break
+                          except Exception as exc:  # transient CDN failures
+                              if attempt == 3:
+                                  raise
+                              print(f"retrying LibTorch download after {exc!r}")
+                              archive.seek(0)
+                              archive.truncate()
+                              time.sleep(10 * (attempt + 1))
+
+                  with zipfile.ZipFile(archive_path) as zip_file:
+                      damaged = zip_file.testzip()
+                      if damaged is not None:
+                          raise RuntimeError(f"damaged LibTorch member: {damaged}")
+                      zip_file.extractall(staging_dir)
+              finally:
+                  if archive_path is not None:
+                      archive_path.unlink(missing_ok=True)
+
+              problem = verify(staging_dir / "libtorch")
+              if problem is not None:
+                  shutil.rmtree(staging_dir, ignore_errors=True)
+                  raise RuntimeError(f"prefetched LibTorch archive is unusable: {problem}")
+
+              shutil.rmtree(package_dir, ignore_errors=True)
+              staging_dir.replace(package_dir)
+
+          # torch-sys honours LIBTORCH (absolute) and skips its own PyPI/download path
+          # entirely, so the same libraries are used at build time and when packaging.
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"LIBTORCH={libtorch_dir}\n")
+              env_file.write(f"FLINT_LIBTORCH_VERSION={version}\n")
+              env_file.write(f"FLINT_LIBTORCH_DEVICE={device}\n")
+              if runner_os == "Windows":
+                  # Windows resolves DLLs through PATH; GITHUB_PATH prepends the entry.
+                  with open(os.environ["GITHUB_PATH"], "a", encoding="utf-8") as path_file:
+                      path_file.write(f"{lib_dir}\n")
+              elif runner_os == "macOS":
+                  current = os.environ.get("DYLD_LIBRARY_PATH", "")
+                  env_file.write(
+                      f"DYLD_LIBRARY_PATH={lib_dir}:{current}\n" if current
+                      else f"DYLD_LIBRARY_PATH={lib_dir}\n"
+                  )
+              else:
+                  current = os.environ.get("LD_LIBRARY_PATH", "")
+                  env_file.write(
+                      f"LD_LIBRARY_PATH={lib_dir}:{current}\n" if current
+                      else f"LD_LIBRARY_PATH={lib_dir}\n"
+                  )
+
+          shared = [p.name for p in sorted(lib_dir.iterdir()) if p.is_file()]
+          print(f"LIBTORCH={libtorch_dir}")
+          print(f"libtorch lib dir holds {len(shared)} files")
 
       - name: Install CUDA Toolkit
         if: runner.os == 'Windows'
@@ -78,6 +248,7 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           EXE_SUFFIX: ${{ matrix.exe_suffix }}
           RUNNER_OS: ${{ runner.os }}
+          LIBTORCH_DEVICE: ${{ matrix.libtorch_device }}
         run: |
           import os
           import pathlib
@@ -85,6 +256,7 @@ jobs:
           import subprocess
           import zipfile
 
+          runner_os = os.environ["RUNNER_OS"]
           root = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", pathlib.Path.cwd())) / "flint"
           cargo_target_dir = pathlib.Path(os.environ.get("CARGO_TARGET_DIR", "target"))
           if not cargo_target_dir.is_absolute():
@@ -102,50 +274,97 @@ jobs:
           binary = release_dir / f"flint{exe_suffix}"
           if not binary.exists():
               raise FileNotFoundError(f"missing built runner binary: {binary}")
-          shutil.copy2(binary, package_dir / binary.name)
+          packaged_binary = package_dir / binary.name
+          shutil.copy2(binary, packaged_binary)
 
-          # torch-sys emits its actual linked library directory for downloaded,
-          # system, and Python-provided LibTorch installations alike.
-          torch_lib_name = {
+          # 1) The prefetch step is the authoritative source: LIBTORCH points at the
+          #    extracted archive, so build time and packaging always agree.
+          # 2) Fall back to whatever torch-sys reported through its build script. Cargo
+          #    >= 1.99 nests build dirs as build/<crate>/<hash>/, older releases used
+          #    build/<crate>-<hash>/, so both layouts are scanned.
+          sentinel = {
               "Windows": "torch.dll",
               "macOS": "libtorch.dylib",
               "Linux": "libtorch.so",
-          }[os.environ["RUNNER_OS"]]
+          }[runner_os]
+          libtorch_env = os.environ.get("LIBTORCH", "").strip()
           build_root = release_dir / "build"
-          torch_lib_dirs = set()
-          for output in build_root.glob("torch-sys-*/output"):
-              for line in output.read_text(encoding="utf-8").splitlines():
-                  prefix = "cargo:rustc-link-search=native="
-                  if line.startswith(prefix):
-                      candidate = pathlib.Path(line[len(prefix):])
-                      if (candidate / torch_lib_name).is_file():
-                          torch_lib_dirs.add(candidate)
-          if len(torch_lib_dirs) != 1:
+          outputs = sorted(
+              set(build_root.glob("torch-sys-*/output"))
+              | set(build_root.glob("torch-sys/*/output"))
+              | set(build_root.glob("torch-sys*/**/output"))
+          )
+          candidates = []
+          if libtorch_env:
+              candidates.append(pathlib.Path(libtorch_env) / "lib")
+          prefixes = (
+              "cargo:rustc-link-search=native=",
+              "cargo:rustc-link-search=",
+              "cargo:libtorch_lib=",
+          )
+          for output in outputs:
+              for line in output.read_text(encoding="utf-8", errors="replace").splitlines():
+                  for prefix in prefixes:
+                      if line.startswith(prefix):
+                          candidates.append(pathlib.Path(line[len(prefix):].strip()))
+                          break
+
+          torch_lib = None
+          inspected = []
+          for candidate in candidates:
+              inspected.append(str(candidate))
+              if (candidate / sentinel).is_file():
+                  torch_lib = candidate
+                  break
+          if torch_lib is None:
               raise RuntimeError(
-                  f"expected one tch-rs LibTorch directory, found {sorted(torch_lib_dirs)}; "
-                  f"checked torch-sys build output under {build_root}"
+                  f"cannot locate LibTorch for packaging ({runner_os}, {sentinel}): "
+                  f"LIBTORCH={libtorch_env or '<unset>'}; "
+                  f"torch-sys build outputs scanned={[str(p) for p in outputs] or 'none'}"
+                  f" under {build_root} (exists={build_root.is_dir()}); "
+                  f"candidate dirs checked={inspected or 'none'}"
               )
-          torch_lib = torch_lib_dirs.pop()
+          print(f"packaging LibTorch libraries from {torch_lib}")
+
           torch_pattern = {
               "Windows": "*.dll",
               "macOS": "*.dylib",
               "Linux": "*.so*",
-          }[os.environ["RUNNER_OS"]]
-          for source in torch_lib.glob(torch_pattern):
+          }[runner_os]
+          torch_copied = []
+          for source in sorted(torch_lib.glob(torch_pattern)):
               if source.is_file():
                   shutil.copy2(source, package_dir / source.name)
+                  torch_copied.append(source.name)
+          if not torch_copied:
+              raise RuntimeError(
+                  f"no {torch_pattern} files found in LibTorch directory {torch_lib}"
+              )
+          print(f"bundled {len(torch_copied)} LibTorch libraries")
 
-          if os.environ["RUNNER_OS"] == "Linux":
-              subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", str(package_dir / binary.name)], check=True)
-          elif os.environ["RUNNER_OS"] == "macOS":
-              subprocess.run(["install_name_tool", "-add_rpath", "@executable_path", str(package_dir / binary.name)], check=True)
+          if runner_os == "Linux":
+              subprocess.run(
+                  ["patchelf", "--set-rpath", "$ORIGIN", str(packaged_binary)], check=True
+              )
+          elif runner_os == "macOS":
+              linked = subprocess.run(
+                  ["otool", "-l", str(packaged_binary)],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+              if "@executable_path" not in linked:
+                  subprocess.run(
+                      ["install_name_tool", "-add_rpath", "@executable_path", str(packaged_binary)],
+                      check=True,
+                  )
 
           native_library_patterns = {
               "Windows": "koharu*.dll",
               "macOS": "libkoharu*.dylib",
               "Linux": "libkoharu*.so",
           }
-          pattern = native_library_patterns[os.environ["RUNNER_OS"]]
+          pattern = native_library_patterns[runner_os]
           for source in release_dir.glob(pattern):
               shutil.copy2(source, package_dir / source.name)
 
@@ -156,7 +375,15 @@ jobs:
 
           platform = os.environ["PLATFORM"]
           if platform == "windows-x86_64":
-              required = ("flint.exe", "torch.dll", "torch_cpu.dll", "c10.dll")
+              required = (
+                  "flint.exe",
+                  "torch.dll",
+                  "torch_cpu.dll",
+                  "torch_cuda.dll",
+                  "c10.dll",
+                  "c10_cuda.dll",
+                  "libiomp5md.dll",
+              )
           elif platform == "macos-arm64":
               required = ("flint", "libtorch.dylib", "libtorch_cpu.dylib", "libc10.dylib")
           else:
@@ -165,10 +392,70 @@ jobs:
           if missing:
               raise RuntimeError(f"release package is missing: {', '.join(missing)}")
 
+          # The CUDA build has to carry its own CUDA runtime: the release runner has no
+          # CUDA toolkit and end users should not need one either.
+          if platform == "windows-x86_64" and os.environ.get("LIBTORCH_DEVICE", "").startswith("cu"):
+              cuda_runtime = sorted(
+                  name for name in torch_copied
+                  if name.startswith("cudart64_") and name.endswith(".dll")
+              )
+              if not cuda_runtime:
+                  raise RuntimeError(
+                      "CUDA LibTorch build did not bundle a cudart64_*.dll runtime"
+                  )
+
+          if runner_os == "Linux":
+              linked = subprocess.run(
+                  ["ldd", str(packaged_binary)], capture_output=True, text=True
+              ).stdout
+              unresolved = [line.strip() for line in linked.splitlines() if "not found" in line]
+              # Only LibTorch-family libraries are our responsibility here; anything else
+              # comes from the distribution and is not bundled into the archive.
+              critical = [
+                  line for line in unresolved
+                  if any(token in line for token in ("libtorch", "libc10", "libshm", "libgomp", "libomp"))
+              ]
+              if critical:
+                  raise RuntimeError(
+                      "packaged runner cannot resolve bundled LibTorch libraries: "
+                      + "; ".join(critical)
+                  )
+              for line in unresolved:
+                  print(f"note: unbundled system library: {line}")
+          elif runner_os == "macOS":
+              linked = subprocess.run(
+                  ["otool", "-L", str(packaged_binary)],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+              leaked = [
+                  line.split()[0] for line in linked.splitlines()[1:]
+                  if line.strip() and line.split()[0].startswith("/Users/")
+              ]
+              if leaked:
+                  raise RuntimeError(
+                      "packaged runner references build-time libtorch paths: "
+                      + ", ".join(leaked)
+                  )
+
           all_files = sorted(path for path in package_dir.rglob("*") if path.is_file())
           with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
               for path in all_files:
                   zf.write(path, path.relative_to(package_dir.parent))
+
+          print(f"packaged {len(all_files)} files into {archive.name} "
+                f"({archive.stat().st_size / 1e6:.1f} MB)")
+
+          # GitHub rejects release assets of 2 GiB or more. CUDA LibTorch alone is
+          # ~1.9 GB zipped, so report the limit breach here instead of letting the
+          # upload fail with an opaque error.
+          asset_limit = 2 * 1024 ** 3
+          if archive.stat().st_size >= asset_limit:
+              raise RuntimeError(
+                  f"{archive.name} is {archive.stat().st_size / 1024 ** 3:.2f} GiB, at or over "
+                  "the 2 GiB GitHub release asset limit"
+              )
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"archive={archive.as_posix()}\n")
