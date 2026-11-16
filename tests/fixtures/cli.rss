@@ -20,9 +20,9 @@ let mmap_arg: int = cli::option::<bool>(
 );
 flint::cli::parse_args(parser);
 
-let name = cli::get::<string>(name_arg);
-let count = cli::get::<int>(count_arg);
-let mmap = cli::get::<bool>(mmap_arg);
+let name = cli::get_string(name_arg);
+let count = cli::get_int(count_arg);
+let mmap = cli::get_bool(mmap_arg);
 let output = if count == 7 && mmap == false => {
     name
 } else => {

@@ -1,0 +1,17 @@
+use stdlib::rss::lrucache as lru;
+use flint;
+
+let mut cache = lru::new::<string, int>(2);
+cache = lru::put::<string, int>(cache, "a", 1);
+cache = lru::put::<string, int>(cache, "b", 2);
+assert(match lru::peek::<string, int>(cache, "a") { Some(value) => value == 1, None => false });
+cache = lru::put::<string, int>(cache, "c", 3);
+assert(match lru::peek::<string, int>(cache, "a") { None => true, Some(_) => false });
+assert(match lru::peek::<string, int>(cache, "c") { Some(value) => value == 3, None => false });
+let accessed = lru::get::<string, int>(cache, "c");
+assert(match accessed.value { Some(value) => value == 3, None => false });
+cache = accessed.cache;
+cache = lru::remove::<string, int>(cache, "b");
+assert(lru::len::<string, int>(cache) == 1);
+flint::runtime::set_text_output("lru Option passed");
+"lru Option passed";

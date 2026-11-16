@@ -231,28 +231,24 @@ fn ggml_library_path(directory: &Path) -> Result<PathBuf> {
 }
 
 fn preload_package_dependencies(package: StableDiffusionCpp) -> Result<()> {
-    if matches!(package, StableDiffusionCpp::WindowsX64Cuda12) {
-        native::block_on(Cuda::Runtime12.preload())?;
-        native::block_on(Cuda::Cublas12.preload())?;
+    if matches!(package, StableDiffusionCpp::WindowsX64Cuda) {
+        native::block_on(Cuda::Runtime130.preload())?;
+        native::block_on(Cuda::Cublas130.preload())?;
     }
     Ok(())
 }
 
 fn stable_diffusion_cpu_package() -> Result<StableDiffusionCpp> {
-    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        Ok(StableDiffusionCpp::WindowsX64Cpu)
-    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        Ok(StableDiffusionCpp::LinuxX64Cpu)
-    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         Ok(StableDiffusionCpp::MacosArm64)
     } else {
-        bail!("unsupported stable-diffusion.cpp CPU package for this target")
+        bail!("koharu no longer ships a CPU stable-diffusion.cpp package for this target")
     }
 }
 
 fn stable_diffusion_cuda_package() -> Result<StableDiffusionCpp> {
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        Ok(StableDiffusionCpp::WindowsX64Cuda12)
+        Ok(StableDiffusionCpp::WindowsX64Cuda)
     } else {
         bail!("unsupported stable-diffusion.cpp CUDA package for this target")
     }

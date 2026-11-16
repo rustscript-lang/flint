@@ -6,11 +6,11 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use clap::Parser;
 use flint_ai::{parse_device, preload_libtorch};
-use koharu_torch::{Cuda, Device, Kind, Tensor};
+use tch::{Cuda, Device, Kind, Tensor};
 use tokenizers::Tokenizer;
 
 #[derive(Debug, Parser)]
-#[command(about = "Run LFM2 inference directly in Rust with koharu-torch")]
+#[command(about = "Run LFM2 inference directly in Rust with tch-rs")]
 struct Cli {
     #[arg(long, default_value = "cpu")]
     device: String,
@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
     let tokenizer = Tokenizer::from_file(&cli.tokenizer)
         .map_err(|err| anyhow::anyhow!("failed to read {}: {err}", cli.tokenizer.display()))?;
     let mut model = Lfm2Native::load(&cli.weights, device, cli.profile)?;
-    let stats = koharu_torch::no_grad(|| {
+    let stats = tch::no_grad(|| {
         model.generate(
             &tokenizer,
             &cli.system,

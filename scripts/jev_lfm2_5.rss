@@ -54,11 +54,11 @@ let scoring_arg: int = cli::option::<string>(
     parser, "token-mean", ["--scoring"], "Store", "token-mean or total"
 );
 flint::cli::parse_args(parser);
-let weights_path: string = cli::get::<string>(weights_arg);
-let tokenizer_path: string = cli::get::<string>(tokenizer_arg);
-let request_text: string = cli::get::<string>(request_arg);
-let temperature: float = cli::get::<float>(temperature_arg);
-let scoring: string = cli::get::<string>(scoring_arg);
+let weights_path: string = cli::get_string(weights_arg);
+let tokenizer_path: string = cli::get_string(tokenizer_arg);
+let request_text: string = cli::get_string(request_arg);
+let temperature: float = cli::get_float(temperature_arg);
+let scoring: string = cli::get_string(scoring_arg);
 let request: Request = json::decode::<Request>(request_text);
 assert(temperature > 0.0 && math::is_finite(temperature));
 assert(scoring == "total" || scoring == "token-mean");

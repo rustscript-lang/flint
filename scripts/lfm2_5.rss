@@ -61,18 +61,18 @@ let image_arg: int = cli::option::<string>(
 );
 flint::cli::parse_args(parser);
 
-let weights_path = cli::get::<string>(weights_arg);
-let tokenizer_path = cli::get::<string>(tokenizer_arg);
-let system_prompt = cli::get::<string>(system_arg);
-let source_text = cli::get::<string>(prompt_arg);
-let max_new_tokens = cli::get::<int>(predict_arg);
-let ignore_eos: int = if cli::get::<bool>(ignore_eos_arg) => {
+let weights_path = cli::get_string(weights_arg);
+let tokenizer_path = cli::get_string(tokenizer_arg);
+let system_prompt = cli::get_string(system_arg);
+let source_text = cli::get_string(prompt_arg);
+let max_new_tokens = cli::get_int(predict_arg);
+let ignore_eos: int = if cli::get_bool(ignore_eos_arg) => {
     1
 } else => {
     0
 };
-let model_kind = cli::get::<int>(model_kind_arg);
-let image_path = cli::get::<string>(image_arg);
+let model_kind = cli::get_int(model_kind_arg);
+let image_path = cli::get_string(image_arg);
 
 flint::weights::load(weights_path);
 flint::tokenizer::load(tokenizer_path);

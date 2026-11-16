@@ -1,16 +1,13 @@
 mod host;
 mod stdlib;
 
-#[cfg(windows)]
-use std::env;
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, ensure};
 use image::{DynamicImage, GrayImage, RgbImage};
 use imageproc::contours::{BorderType, find_contours_with_threshold};
-use koharu_runtime::package::{Package, libtorch::Libtorch, loading::preload};
-use koharu_torch::{Cuda, Device, Kind, Tensor};
+use tch::{Cuda, Device, Kind, Tensor};
 use vm::{
     CompiledProgram, Program, SourceFlavor, SourcePathError, compile_source_file_with_options,
     compile_source_with_flavor_and_options,
@@ -35,9 +32,7 @@ pub struct LamaRustScript {
 
 impl LamaRustScript {
     pub async fn new(device: Device) -> Result<Self> {
-        preload_libtorch()
-            .await
-            .context("failed to initialize LibTorch runtime")?;
+        preload_libtorch().await?;
         let compiled = compile_source_with_flavor_and_options(
             include_str!("../scripts/lama.rss"),
             SourceFlavor::RustScript,
@@ -74,7 +69,7 @@ impl LamaRustScript {
             "image dimensions must be non-zero"
         );
 
-        koharu_torch::no_grad(|| {
+        tch::no_grad(|| {
             if image.width().max(image.height()) > 800 {
                 let boxes = boxes_from_mask(mask);
                 if boxes.is_empty() {
@@ -153,36 +148,8 @@ impl LamaRustScript {
     }
 }
 
+/// tch links LibTorch directly; no runtime package preload is required.
 pub async fn preload_libtorch() -> Result<()> {
-    let libtorch = Libtorch::for_current_target()?;
-    let dylibs = libtorch.dylibs()?.collect::<Vec<_>>();
-    let lib_dir = libtorch.resolve().await?.join("libtorch").join("lib");
-    prepend_dll_search_path(&lib_dir)?;
-    for dylib in dylibs {
-        preload(lib_dir.join(dylib))?;
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn prepend_dll_search_path(path: &Path) -> Result<()> {
-    let current = env::var_os("PATH").unwrap_or_default();
-    if env::split_paths(&current).any(|item| item == path) {
-        return Ok(());
-    }
-
-    let mut paths = Vec::with_capacity(1);
-    paths.push(path.to_owned());
-    paths.extend(env::split_paths(&current));
-    let joined = env::join_paths(paths).context("failed to update DLL search path")?;
-    unsafe {
-        env::set_var("PATH", joined);
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn prepend_dll_search_path(_path: &Path) -> Result<()> {
     Ok(())
 }
 

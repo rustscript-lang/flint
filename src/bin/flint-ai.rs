@@ -66,13 +66,13 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn torch_device(value: Option<&str>) -> Result<koharu_torch::Device> {
+async fn torch_device(value: Option<&str>) -> Result<tch::Device> {
     preload_libtorch().await?;
     resolve_device(value)
 }
 
 async fn run_torch_script(
-    device: koharu_torch::Device,
+    device: tch::Device,
     script: Option<PathBuf>,
     args: Vec<String>,
 ) -> Result<()> {
@@ -101,7 +101,7 @@ fn run_native_script(script: Option<PathBuf>, args: Vec<String>) -> Result<()> {
 }
 
 async fn run_lama(
-    device: koharu_torch::Device,
+    device: tch::Device,
     weights: Option<PathBuf>,
     image: Option<PathBuf>,
     mask: Option<PathBuf>,

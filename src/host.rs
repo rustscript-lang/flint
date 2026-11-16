@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
 use image::imageops::FilterType;
-use koharu_torch::{Device, Kind, Tensor};
+use tch::{Device, Kind, Tensor};
 use tokenizers::Tokenizer;
 use vm::{
     CallOutcome, CallReturn, HostFunctionRegistry, Program, Value, Vm, VmError, VmResult, VmStatus,
@@ -373,7 +373,7 @@ impl TorchHostRuntime {
         let mut vm = Vm::new_shared_with_jit_config(program, torch_jit_config());
         self.bind(&mut vm);
         let _current_context = self.context.enter();
-        let status = koharu_torch::no_grad(|| vm.run()).map_err(|err| anyhow!(err.to_string()))?;
+        let status = tch::no_grad(|| vm.run()).map_err(|err| anyhow!(err.to_string()))?;
         if status != VmStatus::Halted {
             bail!("RustScript did not halt: {status:?}");
         }
@@ -396,7 +396,7 @@ impl TorchHostRuntime {
         let _current_context = self.context.enter();
         let status = match mode {
             ScriptExecutionMode::Native => vm.run(),
-            ScriptExecutionMode::Torch => koharu_torch::no_grad(|| vm.run()),
+            ScriptExecutionMode::Torch => tch::no_grad(|| vm.run()),
         }
         .map_err(|err| anyhow!(err.to_string()))?;
         if status != VmStatus::Halted {
@@ -452,9 +452,7 @@ impl ScriptRunner {
     }
 
     pub async fn with_device(device: Device) -> Result<Self> {
-        crate::preload_libtorch()
-            .await
-            .context("failed to initialize LibTorch runtime")?;
+        crate::preload_libtorch().await?;
         Ok(Self {
             runtime: TorchHostRuntime::new(device),
             mode: ScriptExecutionMode::Torch,

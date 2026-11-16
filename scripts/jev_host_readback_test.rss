@@ -8,7 +8,7 @@ let tokenizer_arg: int = cli::required_option::<string>(
     parser, "", ["--tokenizer"], "Store", "Tokenizer path"
 );
 flint::cli::parse_args(parser);
-flint::tokenizer::load(cli::get::<string>(tokenizer_arg));
+flint::tokenizer::load(cli::get_string(tokenizer_arg));
 
 // The original Flint host has no scalar readback: use an argmax comparison.
 fn scalar_at(ids: int, index: int, vocabulary: int) -> int {

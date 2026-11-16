@@ -93,22 +93,22 @@ let scheduler_arg: int = cli::option::<string>(
 );
 flint::cli::parse_args(parser);
 
-let model_source = cli::get::<string>(model_arg);
-let vae_path = cli::get::<string>(vae_arg);
-let llm_path = cli::get::<string>(llm_arg);
-let prompt = cli::get::<string>(prompt_arg);
-let output_path = cli::get::<string>(output_arg);
-let width = cli::get::<int>(width_arg);
-let height = cli::get::<int>(height_arg);
-let steps = cli::get::<int>(steps_arg);
-let seed = cli::get::<int>(seed_arg);
-let cfg_scale = cli::get::<float>(cfg_arg);
-let backend = cli::get::<string>(backend_arg);
-let params_backend = cli::get::<string>(params_backend_arg);
-let max_vram = cli::get::<string>(max_vram_arg);
-let wtype = cli::get::<string>(type_arg);
-let sample_method_name = cli::get::<string>(sampler_arg);
-let scheduler_name = cli::get::<string>(scheduler_arg);
+let model_source = cli::get_string(model_arg);
+let vae_path = cli::get_string(vae_arg);
+let llm_path = cli::get_string(llm_arg);
+let prompt = cli::get_string(prompt_arg);
+let output_path = cli::get_string(output_arg);
+let width = cli::get_int(width_arg);
+let height = cli::get_int(height_arg);
+let steps = cli::get_int(steps_arg);
+let seed = cli::get_int(seed_arg);
+let cfg_scale = cli::get_float(cfg_arg);
+let backend = cli::get_string(backend_arg);
+let params_backend = cli::get_string(params_backend_arg);
+let max_vram = cli::get_string(max_vram_arg);
+let wtype = cli::get_string(type_arg);
+let sample_method_name = cli::get_string(sampler_arg);
+let scheduler_name = cli::get_string(scheduler_arg);
 
 let ctx_params: int = flint::diffusion::ctx_params_init();
 flint::diffusion::ctx_params_set_paths(ctx_params, "", model_source, vae_path, llm_path);

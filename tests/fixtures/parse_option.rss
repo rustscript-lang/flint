@@ -1,0 +1,11 @@
+use stdlib::rss::parse as parse;
+use flint;
+
+let parsed: Option<int> = parse::try_parse_int("41");
+assert(match parsed { Some(value) => value == 41, None => false });
+assert(match parse::try_parse_int("oops") { None => true, Some(_) => false });
+assert(parse::parse_int_or("oops", 7) == 7);
+assert(match parse::try_parse_bool("false") { Some(value) => value == false, None => false });
+assert(match parse::try_parse_bool("maybe") { None => true, Some(_) => false });
+flint::runtime::set_text_output("parse Option passed");
+"parse Option passed";

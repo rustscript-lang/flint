@@ -68,15 +68,15 @@ let rope_theta_arg: int = cli::option::<float>(
 );
 flint::cli::parse_args(parser);
 
-let weights_path = cli::get::<string>(weights_arg);
-let tokenizer_path = cli::get::<string>(tokenizer_arg);
-let prompt = cli::get::<string>(prompt_arg);
-let output_path = cli::get::<string>(output_arg);
-let max_len = cli::get::<int>(max_len_arg);
-let pad_token = cli::get::<int>(pad_token_arg);
-let num_layers = cli::get::<int>(layers_arg);
-let head_dim = cli::get::<int>(head_dim_arg);
-let rope_theta = cli::get::<float>(rope_theta_arg);
+let weights_path = cli::get_string(weights_arg);
+let tokenizer_path = cli::get_string(tokenizer_arg);
+let prompt = cli::get_string(prompt_arg);
+let output_path = cli::get_string(output_arg);
+let max_len = cli::get_int(max_len_arg);
+let pad_token = cli::get_int(pad_token_arg);
+let num_layers = cli::get_int(layers_arg);
+let head_dim = cli::get_int(head_dim_arg);
+let rope_theta = cli::get_float(rope_theta_arg);
 flint::weights::load(weights_path);
 flint::tokenizer::load(tokenizer_path);
 fn weight(name: string) -> int {

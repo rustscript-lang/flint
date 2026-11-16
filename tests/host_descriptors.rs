@@ -128,9 +128,9 @@ fn composition_catalog_and_adapter_names_are_the_same_surface() {
         .filter(|name| is_residual_name(name))
         .count();
     let macro_count = composition_count - residual_count;
-    assert_eq!(macro_count, 105);
+    assert_eq!(macro_count, 108);
     assert_eq!(residual_count, 102);
-    assert_eq!(composition_count, 207);
+    assert_eq!(composition_count, 210);
 
     for descriptor in modules.iter().flat_map(|module| module.descriptors()) {
         if !is_residual_name(&descriptor.schema.name) {
@@ -164,7 +164,7 @@ fn dynamic_map_any_unknown_slots_match_allowlist() {
     let catalog = flint_host_catalog();
     assert_eq!(
         dynamic_slots(catalog.as_ref()),
-        ["flint::cli::get return", "flint::cli::refer param initial",]
+        ["flint::cli::refer param initial"]
     );
 }
 

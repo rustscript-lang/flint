@@ -7,7 +7,7 @@ use vm::{
 
 use super::{cache, cli, context, diffusion, ggml, llama, pair, runtime};
 
-pub const FROZEN_RUSTSCRIPT_REV: &str = "b1d6cffede77f49410bf63525f30b9a46b02dc01";
+pub const FROZEN_RUSTSCRIPT_REV: &str = "2f433edab3f1907e8cb060e901357d7e2af016ce";
 
 /// Single ordered composition for every production Flint host.
 ///
@@ -15,8 +15,8 @@ pub const FROZEN_RUSTSCRIPT_REV: &str = "b1d6cffede77f49410bf63525f30b9a46b02dc0
 /// list as the only compile-catalog and restricted-runtime authority.
 ///
 /// Slot allowlist for remaining Any guest values:
-/// - `flint::cli::get` / `flint::cli::refer` `Value` slots: argparse values are
-///   string|int|float|bool chosen at refer time.
+/// - `flint::cli::refer` `Value` input: argparse values are
+///   string|int|float|bool chosen at refer time; typed getters return concrete schemas.
 /// - llama/diffusion/cli/cache/pair/runtime `i64` handles: opaque tokens into
 ///   host-owned tables with explicit free; VM `HostResource` auto-close would
 ///   change llama.cpp/sd.cpp lifetime.
@@ -51,7 +51,10 @@ fn cli_host_module() -> HostModuleDescriptor {
             cli::cli_required_descriptor,
             cli::cli_metavar_descriptor,
             cli::cli_parse_args_descriptor,
-            cli::cli_get_descriptor,
+            cli::cli_get_string_descriptor,
+            cli::cli_get_int_descriptor,
+            cli::cli_get_float_descriptor,
+            cli::cli_get_bool_descriptor,
         ],
         resources: &[],
     }
